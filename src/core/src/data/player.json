@@ -1,3 +1,39 @@
-player {
+{
+  "name": "Player",
+  "age": 16,
+  "location": "Kasi",
+  "phase": "Youth",
 
+  "stats": {
+    "health": 100,
+    "energy": 100,
+    "stress": 10,
+    "happiness": 100,
+    "nerve": 30
+  },
+
+  "workStats": {
+    "intelligence": 10,
+    "endurance": 10,
+    "communication": 10,
+    "hustle": 7,
+    "discipline": 10
+  },
+
+  "battleStats": {
+    "attack": 10,
+    "defence": 10,
+    "speed": 10,
+    "fearlessness": 10
+  },
+
+  "money": 100,
+
+  "inventory": [],
+
+  "relationships": [],
+
+  "criminalRecord": [],
+
+  "job": null
 }
