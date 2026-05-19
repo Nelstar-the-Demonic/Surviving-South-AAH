@@ -1,3 +1,57 @@
-events {
+[
+  {{
+    "id": "school_fight",
+    "title": "School Fight",
+    "description": "A learner bumps into you and starts insulting you in front of everyone.",
 
-}
+    "minAge": 16,
+    "maxAge": 18,
+
+    "locations": ["Kasi", "Town", "City", "Suburb"],
+
+    "choices": [
+      {
+        "text": "Fight back",
+        "effects": {
+          "health": -10,
+          "fearlessness": 3,
+          "stress": 5
+        }
+      },
+      {
+        "text": "Walk away",
+        "effects": {
+          "stress": 2,
+          "happiness": -5
+        }
+      }
+    ]
+  },
+
+  {
+    "id": "phone_stolen",
+    "title": "Phone Stolen",
+    "description": "Your phone gets stolen in a taxi.",
+
+    "minAge": 16,
+    "maxAge": 60,
+
+    "locations": ["Village", "Kasi", "City"],
+
+    "choices": [
+      {
+        "text": "Report it",
+        "effects": {
+          "stress": 7
+        }
+      },
+      {
+        "text": "Buy another cheap phone",
+        "effects": {
+          "money": -500,
+          "stress": 2
+        }
+      }
+    ]
+  }
+]
