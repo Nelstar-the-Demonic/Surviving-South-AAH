@@ -70,7 +70,7 @@ surviving-south-aah/
 │   ├── ui/
 │   │   ├── themes/
 │   │   │   └── default_theme.tres
-│   │   ├── panels/
+│   │   ├─�� panels/
 │   │   │   ├── StatsPanel.gd
 │   │   │   ├── InventoryPanel.gd
 │   │   │   ├── MapPanel.gd
@@ -109,7 +109,7 @@ surviving-south-aah/
 │   └── test_relationships.gd
 ├── project.godot
 ├── export_presets.cfg
-└─��� README.md
+└── README.md
 ```
 
 ---
