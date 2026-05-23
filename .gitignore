@@ -1,0 +1,40 @@
+# Godot-specific ignores
+.godot/
+export.cfg
+export_presets.cfg
+*.export_presets
+
+# OS-specific
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Build artifacts
+bin/
+obj/
+build/
+*.exe
+*.apk
+*.ipa
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Save files and debug
+*.save
+*.tscn.bak
+*.tres.bak
+debug.log
+
+# IDE
+*.code-workspace
+.vs/
+.vscode
+
+# User settings
+user.cfg

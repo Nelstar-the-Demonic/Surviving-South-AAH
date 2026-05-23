@@ -1,0 +1,42 @@
+{
+  "events": [
+    {
+      "id": "day_start_unemployed",
+      "category": "random",
+      "title": "Another Day Begins",
+      "description": "You wake up. The sun is rising over the township. You have no job waiting for you today. How do you spend your time?",
+      "probability": 0.3,
+      "choices": [
+        {
+          "id": "search_job",
+          "text": "Search for work",
+          "stat_changes": {"energy": -20, "stress": -5}
+        },
+        {
+          "id": "rest",
+          "text": "Rest and recover",
+          "stat_changes": {"energy": 30, "stress": -10, "hunger": 10}
+        }
+      ]
+    },
+    {
+      "id": "money_shortage",
+      "category": "random",
+      "title": "Reality Check",
+      "description": "You count your money. After rent and basic food, you have very little left. Stress creeps in.",
+      "probability": 0.2,
+      "choices": [
+        {
+          "id": "stay_disciplined",
+          "text": "Stay disciplined and budget carefully",
+          "stat_changes": {"stress": 15}
+        },
+        {
+          "id": "panic",
+          "text": "Feel panic setting in",
+          "stat_changes": {"stress": 40, "hope": -15}
+        }
+      ]
+    }
+  ]
+}
