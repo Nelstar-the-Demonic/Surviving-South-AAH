@@ -1,0 +1,46 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Deep near-black background — like the night sky in the cover art */
+    --background: 20 8% 4%;
+    --foreground: 42 20% 91%;
+
+    /* Dark amber-tinted card surface */
+    --card: 25 10% 8%;
+    --card-foreground: 42 20% 91%;
+
+    --popover: 25 10% 8%;
+    --popover-foreground: 42 20% 91%;
+
+    /* Signature amber/gold — matches the warm tones in the cover */
+    --primary: 40 88% 50%;
+    --primary-foreground: 20 8% 4%;
+
+    /* Muted dark grey-brown surfaces */
+    --secondary: 25 8% 13%;
+    --secondary-foreground: 42 15% 80%;
+
+    --muted: 25 8% 11%;
+    --muted-foreground: 30 5% 52%;
+
+    /* Accent: rich deep gold */
+    --accent: 38 80% 44%;
+    --accent-foreground: 20 8% 4%;
+
+    --destructive: 0 72% 48%;
+    --destructive-foreground: 0 0% 98%;
+
+    /* Warm dark border */
+    --border: 30 8% 16%;
+    --input: 25 8% 13%;
+
+    /* Ring: gold */
+    --ring: 40 88% 50%;
+
+    /* Sharp corners — gritty SA street aesthetic */
+    --radius: 0rem;
+  }
+}

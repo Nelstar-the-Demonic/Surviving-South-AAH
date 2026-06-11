@@ -1,0 +1,322 @@
+import { useState } from 'react';
+import { View, Text, ScrollView, Pressable, TextInput } from 'react-native';
+import { useGame } from '@/store/gameContext';
+import { GameHeader } from '@/components/game/GameHeader';
+import { InfoCard } from '@/components/game/InfoCard';
+import { RECIPES, DRUG_EFFECTS } from '@/lib/game/gameData';
+import type { InventoryItem } from '@/types/game';
+
+const GOLD = '#FFB81C';
+const DARK = '#0D0D0D';
+
+const CATEGORY_ICONS: Record<string, string> = {
+  food: '🍽️', cooked_meal: '🍲', harvest: '🌾', livestock_product: '🥩',
+  meat: '🥩', hygiene: '🧴', clothing: '👕', farm_equipment: '🛠️',
+  farm_input: '🧪', document: '📄', weapon: '🔫', drug: '💊',
+  livestock_medical: '🩺', medkit: '🩹',
+};
+
+const CATEGORY_LABELS: Record<string, string> = {
+  food: 'Food', cooked_meal: 'Cooked', harvest: 'Harvest', livestock_product: 'Produce',
+  meat: 'Meat', hygiene: 'Hygiene', clothing: 'Clothing', farm_equipment: 'Equipment',
+  farm_input: 'Inputs', document: 'Docs', weapon: 'Weapons', drug: 'Drugs',
+  livestock_medical: 'Vet', medkit: 'Medkits',
+};
+
+const SELL_CATEGORIES = new Set(['harvest', 'livestock_product', 'meat', 'food', 'drug']);
+const USE_CATEGORIES = new Set(['food', 'cooked_meal', 'hygiene', 'drug', 'medkit', 'livestock_product']);
+
+export default function Inventory() {
+  const { state, dispatch } = useGame();
+  const [tab, setTab] = useState<string>('food');
+  const [showCooking, setShowCooking] = useState(false);
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [sellQty, setSellQty] = useState<Record<string, string>>({});
+  const [showRestockPicker, setShowRestockPicker] = useState<string | null>(null);
+
+  if (!state?.gameStarted) return null;
+  const { inventory, autoConsume, businesses } = state;
+
+  const allCategories = [...new Set(inventory.filter(i => i.quantity > 0).map(i => i.category))];
+
+  function showFeedback(msg: string) {
+    setFeedback(msg);
+    setTimeout(() => setFeedback(null), 2800);
+  }
+
+  function consumeItem(itemId: string) {
+    dispatch({ type: 'CONSUME_ITEM', payload: itemId });
+    showFeedback('✅ Item used.');
+  }
+
+  function takeDrug(itemId: string, itemName: string) {
+    dispatch({ type: 'TAKE_DRUG', payload: itemId });
+    const key = Object.keys(DRUG_EFFECTS).find(k => itemId.includes(k));
+    const eff = key ? DRUG_EFFECTS[key] : null;
+    showFeedback(eff ? `💊 Took ${itemName}. +${eff.energyBoost} energy.` : `💊 Took ${itemName}.`);
+  }
+
+  function sellItem(itemId: string, itemName: string, qty: number) {
+    if (qty <= 0) { showFeedback('⚠️ Enter a valid quantity.'); return; }
+    const invItem = inventory.find(i => i.id === itemId);
+    if (!invItem || invItem.quantity < qty) { showFeedback('⚠️ Not enough stock.'); return; }
+    if (!invItem.sellPrice) { showFeedback('⚠️ This item cannot be sold directly.'); return; }
+    dispatch({ type: 'SELL_INVENTORY_ITEM', payload: { itemId, quantity: qty } });
+    showFeedback(`✅ Sold ${qty} ${invItem.unit ?? 'unit(s)'} of ${itemName} for R${(invItem.sellPrice * qty).toLocaleString()}.`);
+    setSellQty(prev => ({ ...prev, [itemId]: '' }));
+  }
+
+  function restockBusiness(bizId: string, itemId: string, qty: number) {
+    const invItem = inventory.find(i => i.id === itemId);
+    if (!invItem || invItem.quantity < qty) { showFeedback('⚠️ Not enough in inventory.'); return; }
+    dispatch({ type: 'RESTOCK_BUSINESS', payload: { businessId: bizId, itemId, quantity: qty, cost: 0 } });
+    showFeedback(`✅ Moved ${qty} ${invItem.unit ?? 'unit(s)'} to business stock.`);
+    setShowRestockPicker(null);
+  }
+
+  function cookMeal(recipeId: string) {
+    const recipe = RECIPES.find(r => r.id === recipeId);
+    if (!recipe) return;
+    for (const ing of recipe.ingredients) {
+      const item = inventory.find(i => i.id === ing.itemId);
+      if (!item || item.quantity < ing.quantity) {
+        showFeedback(`⚠️ Missing: ${ing.itemId.replace(/_/g, ' ')} ×${ing.quantity}`);
+        return;
+      }
+    }
+    dispatch({ type: 'COOK_MEAL', payload: recipeId });
+    showFeedback(`✅ Cooked: ${recipe.name}`);
+  }
+
+  const tabItems = inventory.filter(i => i.category === tab && i.quantity > 0);
+
+  // Categories that have at least one item
+  const visibleTabs = allCategories.length > 0 ? allCategories : ['food'];
+
+  return (
+    <View style={{ flex: 1, backgroundColor: DARK }}>
+      <GameHeader title="Inventory" subtitle={`${inventory.filter(i => i.quantity > 0).length} items`} />
+
+      <ScrollView contentInsetAdjustmentBehavior="automatic">
+        <View style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 80, gap: 12 }}>
+
+          {feedback && (
+            <View style={{
+              padding: 12, borderWidth: 1,
+              borderColor: feedback.includes('✅') ? '#4CAF50' : GOLD,
+              backgroundColor: feedback.includes('✅') ? '#0D1A0D' : '#1A0A00',
+            }}>
+              <Text style={{ color: feedback.includes('✅') ? '#4CAF50' : GOLD, fontSize: 13 }}>{feedback}</Text>
+            </View>
+          )}
+
+          {/* Auto-consume toggle */}
+          <Pressable
+            onPress={() => dispatch({ type: 'TOGGLE_AUTO_CONSUME' })}
+            style={{
+              flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 12,
+              borderWidth: 1, borderColor: autoConsume.enabled ? '#4CAF50' : '#333',
+              backgroundColor: autoConsume.enabled ? '#0D1A0D' : '#111',
+            }}
+          >
+            <View>
+              <Text style={{ color: '#eee', fontWeight: '700', fontSize: 13 }}>Auto-Consume Meals</Text>
+              <Text style={{ color: '#666', fontSize: 11, marginTop: 2 }}>
+                {autoConsume.enabled ? `Enabled — eats when hunger ≤ ${autoConsume.threshold}` : 'Disabled'}
+              </Text>
+            </View>
+            <View style={{
+              paddingHorizontal: 10, paddingVertical: 4,
+              backgroundColor: autoConsume.enabled ? '#4CAF50' : '#333',
+            }}>
+              <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>{autoConsume.enabled ? 'ON' : 'OFF'}</Text>
+            </View>
+          </Pressable>
+
+          {/* Cook a meal */}
+          <Pressable
+            onPress={() => setShowCooking(!showCooking)}
+            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 12, borderWidth: 1, borderColor: GOLD, backgroundColor: '#0D0A00' }}
+          >
+            <Text style={{ color: '#eee', fontWeight: '700' }}>🍳 Cook a Meal</Text>
+            <Text style={{ color: GOLD }}>{showCooking ? '▲' : '▼'}</Text>
+          </Pressable>
+
+          {showCooking && (
+            <View style={{ borderWidth: 1, borderColor: '#222', backgroundColor: '#080808' }}>
+              {RECIPES.map(recipe => {
+                const canCook = recipe.ingredients.every(ing => {
+                  const item = inventory.find(i => i.id === ing.itemId);
+                  return item && item.quantity >= ing.quantity;
+                });
+                return (
+                  <Pressable
+                    key={recipe.id}
+                    onPress={() => cookMeal(recipe.id)}
+                    style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: '#111', opacity: canCook ? 1 : 0.5 }}
+                  >
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: '#eee', fontWeight: '700', fontSize: 13 }}>{recipe.name}</Text>
+                        <Text style={{ color: '#666', fontSize: 11, marginTop: 2 }}>
+                          {recipe.ingredients.map(i => `${i.itemId.replace(/_/g, ' ')} ×${i.quantity}`).join(', ')}
+                        </Text>
+                      </View>
+                      <View style={{ alignItems: 'flex-end', marginLeft: 8 }}>
+                        <Text style={{ color: '#4CAF50', fontSize: 12 }}>+{recipe.hungerRestore} hunger</Text>
+                        <Text style={{ color: canCook ? GOLD : '#555', fontSize: 11, fontWeight: '700', marginTop: 4 }}>
+                          {canCook ? 'COOK ▶' : 'MISSING'}
+                        </Text>
+                      </View>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+          )}
+
+          {/* Category Tabs */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              {visibleTabs.map(t => {
+                const count = inventory.filter(i => i.category === t && i.quantity > 0).length;
+                return (
+                  <Pressable
+                    key={t}
+                    onPress={() => setTab(t)}
+                    style={{
+                      alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8,
+                      borderWidth: 1,
+                      borderColor: tab === t ? GOLD : '#333',
+                      backgroundColor: tab === t ? '#1A1400' : '#111',
+                    }}
+                  >
+                    <Text style={{ fontSize: 16 }}>{CATEGORY_ICONS[t] ?? '📦'}</Text>
+                    <Text style={{ fontSize: 10, marginTop: 2, color: tab === t ? GOLD : '#666' }}>
+                      {CATEGORY_LABELS[t] ?? t}
+                    </Text>
+                    {count > 0 && (
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: GOLD }}>{count}</Text>
+                    )}
+                  </Pressable>
+                );
+              })}
+            </View>
+          </ScrollView>
+
+          {/* Items */}
+          {tabItems.length === 0 ? (
+            <InfoCard>
+              <Text style={{ color: '#666', fontSize: 13, textAlign: 'center', paddingVertical: 12 }}>
+                No {CATEGORY_LABELS[tab]?.toLowerCase() ?? tab} in inventory.
+              </Text>
+            </InfoCard>
+          ) : (
+            tabItems.map(item => (
+              <View
+                key={item.id}
+                style={{ borderWidth: 1, borderColor: '#1E1E1E', backgroundColor: '#0D0D0D', padding: 14, gap: 10 }}
+              >
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: '#eee', fontWeight: '700', fontSize: 14 }}>{item.name}</Text>
+                    <Text style={{ color: '#666', fontSize: 12, marginTop: 2 }}>
+                      {typeof item.quantity === 'number' && item.quantity % 1 !== 0
+                        ? item.quantity.toFixed(1)
+                        : item.quantity} {item.unit ?? 'unit(s)'}
+                      {item.hungerRestore ? `  ·  🍽️ +${item.hungerRestore}` : ''}
+                      {item.hygieneRestore ? `  ·  🧼 +${item.hygieneRestore}` : ''}
+                      {item.sellPrice ? `  ·  R${item.sellPrice}/unit` : ''}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  {/* Use / Eat */}
+                  {USE_CATEGORIES.has(item.category) && item.category !== 'drug' && (
+                    <Pressable
+                      onPress={() => consumeItem(item.id)}
+                      style={{ paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: '#4CAF50', backgroundColor: '#0D1A0D' }}
+                    >
+                      <Text style={{ color: '#4CAF50', fontSize: 12, fontWeight: '700' }}>
+                        {item.category === 'food' || item.category === 'cooked_meal' || item.category === 'livestock_product' ? 'EAT' : 'USE'}
+                      </Text>
+                    </Pressable>
+                  )}
+
+                  {/* Take drug */}
+                  {item.category === 'drug' && (
+                    <Pressable
+                      onPress={() => takeDrug(item.id, item.name)}
+                      style={{ paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: '#CE93D8', backgroundColor: '#1A0030' }}
+                    >
+                      <Text style={{ color: '#CE93D8', fontSize: 12, fontWeight: '700' }}>TAKE</Text>
+                    </Pressable>
+                  )}
+
+                  {/* Sell */}
+                  {SELL_CATEGORIES.has(item.category) && item.sellPrice && (
+                    <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+                      <TextInput
+                        value={sellQty[item.id] ?? ''}
+                        onChangeText={v => setSellQty(prev => ({ ...prev, [item.id]: v.replace(/[^0-9.]/g, '') }))}
+                        placeholder="Qty"
+                        placeholderTextColor="#444"
+                        keyboardType="numeric"
+                        style={{
+                          width: 60, height: 34, paddingHorizontal: 8, fontSize: 13,
+                          color: '#eee', borderWidth: 1, borderColor: '#333', backgroundColor: '#111',
+                        }}
+                      />
+                      <Pressable
+                        onPress={() => sellItem(item.id, item.name, parseFloat(sellQty[item.id] ?? '0'))}
+                        style={{ paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: GOLD, backgroundColor: '#1A1000' }}
+                      >
+                        <Text style={{ color: GOLD, fontSize: 12, fontWeight: '700' }}>SELL</Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => sellItem(item.id, item.name, item.quantity)}
+                        style={{ paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: '#D4AF37', backgroundColor: '#1A1000' }}
+                      >
+                        <Text style={{ color: '#D4AF37', fontSize: 12, fontWeight: '700' }}>SELL ALL</Text>
+                      </Pressable>
+                    </View>
+                  )}
+
+                  {/* Stock to business */}
+                  {businesses.length > 0 && (item.category === 'drug' || item.category === 'meat' || item.category === 'livestock_product' || item.category === 'harvest') && (
+                    <Pressable
+                      onPress={() => setShowRestockPicker(showRestockPicker === item.id ? null : item.id)}
+                      style={{ paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: '#64B5F6', backgroundColor: '#001A2A' }}
+                    >
+                      <Text style={{ color: '#64B5F6', fontSize: 12, fontWeight: '700' }}>→ BUSINESS</Text>
+                    </Pressable>
+                  )}
+                </View>
+
+                {/* Business picker */}
+                {showRestockPicker === item.id && (
+                  <View style={{ borderWidth: 1, borderColor: '#222', backgroundColor: '#080808', padding: 10, gap: 6 }}>
+                    <Text style={{ color: '#888', fontSize: 11, marginBottom: 4 }}>Select business to restock:</Text>
+                    {businesses.map(biz => (
+                      <Pressable
+                        key={biz.id}
+                        onPress={() => restockBusiness(biz.id, item.id, Math.min(10, item.quantity))}
+                        style={{ padding: 10, borderWidth: 1, borderColor: '#1A1400', backgroundColor: '#111' }}
+                      >
+                        <Text style={{ color: GOLD, fontSize: 13 }}>{biz.name}</Text>
+                        <Text style={{ color: '#666', fontSize: 11 }}>
+                          Move {Math.min(10, item.quantity).toFixed(1)} {item.unit ?? 'unit(s)'}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                )}
+              </View>
+            ))
+          )}
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
