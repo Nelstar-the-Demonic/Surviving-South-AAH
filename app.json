@@ -6,6 +6,11 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
+    "extra": {
+      "eas": {
+        "projectId": "68c6a302-6ac1-47ef-a714-b49f4ce21d7e"
+      }
+    },
     "ios": {
       "supportsTablet": true,
       "buildNumber": "1",
