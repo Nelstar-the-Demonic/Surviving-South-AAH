@@ -1,5 +1,5 @@
 {
-  "extends": "miaoda-expo-devkit/tsconfig-base",
+  "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "paths": {
       "@/*": [
