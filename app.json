@@ -1,38 +1,38 @@
 {
   "expo": {
-    "name": "surviving South Africa!!!"
-    "slug": "Surviving South Aah!!!"
-    "version": "1.0."
-    "Orientation": "potrait"
-    "Icon": "./assets/icon.png"
-    "userInterfacestyle": "light"
+    "name": "Surviving South Africa",
+    "slug": "surviving-south-africa",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
     "ios": {
-     "supportsTablet": True
-     "buildnumber": "1",
-     "bundleindentifier": "com.nelstar.survivingsouthaah!!!"
-  },
-  "andriod" {
-        "foregroundImage": "./assets/adaptive-icon.png"
-        "backgroundColor": "0A0700"
-   },
-   "predictiveBackGestureEnabled": 
-  false,
-   "versionCode": 1,
-    "package": "com.nelstar.survivingsouthaah!!!"
-   },
-   "plugins": [
-     "expo-router",
-     "expo-asset",
-     "expo-sqlite",
-     "expo-font",
-     "expo-system-ui",
-     "expo-file-system"
-   ],
-   "router": {
-     "root": "src"
-   },
-   "experiments": {
-     "typedRoutes": true
-   }
+      "supportsTablet": true,
+      "buildNumber": "1",
+      "bundleIdentifier": "com.nelstar.survivingsouthaah"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0A0700"
+      },
+      "predictiveBackGestureEnabled": false,
+      "versionCode": 1,
+      "package": "com.nelstar.survivingsouthaah"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-asset",
+      "expo-sqlite",
+      "expo-font",
+      "expo-system-ui",
+      "expo-file-system"
+    ],
+    "router": {
+      "root": "src"
+    },
+    "experiments": {
+      "typedRoutes": true
+    }
   }
 }
