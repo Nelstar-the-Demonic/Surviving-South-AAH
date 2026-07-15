@@ -42,7 +42,7 @@ export function GameHeader({ title, subtitle, showBack = true, extraStats }: Gam
   const hungerColor = hunger >= 50 ? C.green : hunger >= 25 ? C.gold : C.red;
 
   return (
-    <View style={{ backgroundColor: C.surface, borderBottomWidth: 1, borderBottomColor: C.border, paddingTop: 48, paddingHorizontal: 16, paddingBottom: 12 }}>
+    <View style={{ backgroundColor: C.surface, borderBottomWidth: 1, borderBottomColor: C.border, paddingTop: 48, paddingHorizontal: 16, paddingBottom: 12, zIndex: 10, elevation: 10 }}>
       {/* Row 1: Cash + stats */}
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>

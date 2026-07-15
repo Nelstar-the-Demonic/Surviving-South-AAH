@@ -138,8 +138,8 @@ export default function Prison() {
   return (
     <View className="flex-1 bg-background">
       <View
-        className="bg-card px-4 pt-12 pb-4"
-        style={{ borderBottomWidth: 2, borderBottomColor: '#E32636' }}
+        className="bg-card px-4 pt-12 pb-4 z-10"
+        style={{ borderBottomWidth: 2, borderBottomColor: '#E32636', zIndex: 10 }}
       >
         <Text className="text-2xl font-bold" style={{ color: '#E32636' }}>🔒 CORRECTIONAL SERVICES</Text>
         <Text className="text-muted-foreground text-sm mt-1">{prison.facility ?? 'Pollsmoor Correctional Centre'}</Text>
