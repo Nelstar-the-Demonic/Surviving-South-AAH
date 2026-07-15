@@ -110,6 +110,7 @@ export default function MainGame() {
   const router = useRouter();
   const { state, dispatch } = useGame();
   const [showEventModal, setShowEventModal] = useState(false);
+  const [showBonusRewards, setShowBonusRewards] = useState(false);
 
   useEffect(() => {
     if (!state?.gameStarted) router.replace('/');
@@ -362,36 +363,47 @@ export default function MainGame() {
           Applies stat changes, business income & random events
         </Text>
 
-        {/* ── BONUS REWARDS ── */}
-        <View style={{ backgroundColor: C.surface, borderWidth: 1, borderColor: '#2A2014', borderRadius: 10, padding: 14, marginBottom: 16 }}>
-          <Text style={{ color: C.goldDim, fontSize: 12, fontWeight: '700', letterSpacing: 1, marginBottom: 10 }}>
-            📺 BONUS REWARDS
-          </Text>
-          <View style={{ gap: 8 }}>
-            {AD_REWARD_DEFS.map(def => {
-              const { canClaim, reason } = canClaimAdReward(state, def.type);
-              return (
-                <Pressable
-                  key={def.type}
-                  onPress={() => canClaim && claimAdReward(def.type)}
-                  disabled={!canClaim}
-                  style={{
-                    flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12,
-                    backgroundColor: canClaim ? '#15120A' : C.surfaceAlt,
-                    borderWidth: 1, borderColor: canClaim ? '#3A2800' : C.border,
-                    borderRadius: 8, opacity: canClaim ? 1 : 0.5,
-                  }}
-                >
-                  <Text style={{ fontSize: 22 }}>{def.icon}</Text>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ color: canClaim ? C.gold : C.textSub, fontSize: 13, fontWeight: '700' }}>{def.title}</Text>
-                    <Text style={{ color: C.textMuted, fontSize: 11, marginTop: 2 }}>{canClaim ? def.description : reason}</Text>
-                  </View>
-                  {canClaim && <Text style={{ color: C.gold, fontSize: 12, fontWeight: '800' }}>CLAIM ▶</Text>}
-                </Pressable>
-              );
-            })}
-          </View>
+        {/* ── BONUS REWARDS (Collapsible) ── */}
+        <View style={{ backgroundColor: C.surface, borderWidth: 1, borderColor: '#2A2014', borderRadius: 10, marginBottom: 16, overflow: 'hidden' }}>
+          <Pressable 
+            onPress={() => setShowBonusRewards(!showBonusRewards)}
+            style={{ padding: 14, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
+          >
+            <Text style={{ color: C.goldDim, fontSize: 12, fontWeight: '700', letterSpacing: 1 }}>
+              📺 BONUS REWARDS
+            </Text>
+            <Text style={{ color: C.goldDim, fontSize: 16, fontWeight: '800' }}>
+              {showBonusRewards ? '−' : '+'}
+            </Text>
+          </Pressable>
+          
+          {showBonusRewards && (
+            <View style={{ gap: 8, paddingHorizontal: 14, paddingBottom: 14 }}>
+              {AD_REWARD_DEFS.map(def => {
+                const { canClaim, reason } = canClaimAdReward(state, def.type);
+                return (
+                  <Pressable
+                    key={def.type}
+                    onPress={() => canClaim && claimAdReward(def.type)}
+                    disabled={!canClaim}
+                    style={{
+                      flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12,
+                      backgroundColor: canClaim ? '#15120A' : C.surfaceAlt,
+                      borderWidth: 1, borderColor: canClaim ? '#3A2800' : C.border,
+                      borderRadius: 8, opacity: canClaim ? 1 : 0.5,
+                    }}
+                  >
+                    <Text style={{ fontSize: 22 }}>{def.icon}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: canClaim ? C.gold : C.textSub, fontSize: 13, fontWeight: '700' }}>{def.title}</Text>
+                      <Text style={{ color: C.textMuted, fontSize: 11, marginTop: 2 }}>{canClaim ? def.description : reason}</Text>
+                    </View>
+                    {canClaim && <Text style={{ color: C.gold, fontSize: 12, fontWeight: '800' }}>CLAIM ▶</Text>}
+                  </Pressable>
+                );
+              })}
+            </View>
+          )}
         </View>
 
         {/* ── MAIN MENU GRID (2 columns) ── */}
