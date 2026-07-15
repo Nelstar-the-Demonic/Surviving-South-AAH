@@ -785,9 +785,9 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const gangChance = Math.random() > 0.7;
       return {
         ...state,
+        actionsUsedToday: [...state.actionsUsedToday, 'prison_socialize'],
         prison: {
           ...state.prison,
-          daysServed: state.prison.daysServed + 1,
           gangMember: state.prison.gangMember || gangChance,
         },
         stats: {

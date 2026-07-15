@@ -71,6 +71,12 @@ export function applyDailyTick(state: GameState): GameState {
     actionsUsedToday: [],
     dayPhase: 'morning',
     daysUntilNextNpcEncounter: Math.max(0, (s.daysUntilNextNpcEncounter ?? 0) - 1),
+    ...(s.prison.imprisoned && {
+      prison: {
+        ...s.prison,
+        daysServed: s.prison.daysServed + 1,
+      }
+    }),
   };
 
   // Monthly rent payment
@@ -1392,6 +1398,7 @@ export function performPrisonLabour(state: GameState): GameState {
   const income = 35; // prison wage
   return {
     ...state,
+    actionsUsedToday: [...state.actionsUsedToday, 'prison_labour'],
     cash: state.cash + income,
     stats: {
       ...state.stats,
@@ -1401,7 +1408,7 @@ export function performPrisonLabour(state: GameState): GameState {
     },
     prison: {
       ...state.prison,
-      daysServed: state.prison.daysServed + 1,
+      prisonEarnings: state.prison.prisonEarnings + income,
     },
     financeHistory: [...state.financeHistory, {
       day: state.day,
@@ -1415,6 +1422,7 @@ export function performPrisonLabour(state: GameState): GameState {
 export function performPrisonStudy(state: GameState): GameState {
   return {
     ...state,
+    actionsUsedToday: [...state.actionsUsedToday, 'prison_study'],
     stats: {
       ...state.stats,
       intelligence: clamp(state.stats.intelligence + 3),
@@ -1422,7 +1430,6 @@ export function performPrisonStudy(state: GameState): GameState {
     },
     prison: {
       ...state.prison,
-      daysServed: state.prison.daysServed + 1,
       prisonSkills: {
         ...state.prison.prisonSkills,
         study: state.prison.prisonSkills.study + 5,
@@ -1434,6 +1441,7 @@ export function performPrisonStudy(state: GameState): GameState {
 export function performPrisonExercise(state: GameState): GameState {
   return {
     ...state,
+    actionsUsedToday: [...state.actionsUsedToday, 'prison_exercise'],
     stats: {
       ...state.stats,
       fitness: clamp(state.stats.fitness + 5),
@@ -1442,7 +1450,6 @@ export function performPrisonExercise(state: GameState): GameState {
     },
     prison: {
       ...state.prison,
-      daysServed: state.prison.daysServed + 1,
       prisonSkills: {
         ...state.prison.prisonSkills,
         fitness: state.prison.prisonSkills.fitness + 3,
