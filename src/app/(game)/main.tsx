@@ -7,6 +7,7 @@ import { formatMoney, getLocationIcon, getDayName } from '@/lib/game/gameEngine'
 import { AD_REWARD_DEFS, canClaimAdReward } from '@/lib/game/adRewards';
 import type { AdRewardType } from '@/types/game';
 import { StatusBar } from 'expo-status-bar';
+import { hapticLight, hapticMedium, hapticSuccess, hapticError } from '@/lib/haptics';
 
 // ── Design tokens ───────────────────────────────────────────────
 const C = {
@@ -126,18 +127,26 @@ export default function MainGame() {
   function claimAdReward(type: AdRewardType) {
     if (type === 'extra_action') dispatch({ type: 'GRANT_BONUS_ACTION' });
     else dispatch({ type: 'CLAIM_AD_REWARD', payload: type });
+    hapticSuccess();
   }
 
   function handleAdvanceDay() {
     dispatch({ type: 'ADVANCE_DAY' });
+    hapticMedium();
   }
 
   function handleMenuPress(route: string, id: number) {
     if (prison.imprisoned) {
       const allowed = ['/(game)/prison', '/(game)/save-game', '/(game)/settings'];
-      if (!allowed.includes(route)) { router.push('/(game)/prison'); return; }
+      if (!allowed.includes(route)) { 
+        hapticError();
+        router.push('/(game)/prison'); 
+        return; 
+      }
+      hapticLight();
       router.push(route as any); return;
     }
+    hapticLight();
     router.push(route as any);
   }
 
@@ -244,6 +253,7 @@ export default function MainGame() {
                       onPress={() => {
                         dispatch({ type: 'RESOLVE_EVENT', payload: { eventId: activeEvent.id, choiceIndex: i } });
                         if (pendingEvents.length <= 1) setShowEventModal(false);
+                        hapticMedium();
                       }}
                       style={{ marginBottom: 8, padding: 12, borderWidth: 1, borderColor: C.gold, backgroundColor: '#15120A', borderRadius: 8 }}
                     >

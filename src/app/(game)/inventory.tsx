@@ -5,6 +5,7 @@ import { GameHeader } from '@/components/game/GameHeader';
 import { InfoCard } from '@/components/game/InfoCard';
 import { RECIPES, DRUG_EFFECTS } from '@/lib/game/gameData';
 import type { InventoryItem } from '@/types/game';
+import { hapticLight, hapticMedium, hapticSuccess, hapticError } from '@/lib/haptics';
 
 const GOLD = '#FFB81C';
 const DARK = '#0D0D0D';
@@ -33,6 +34,7 @@ export default function Inventory() {
   const [feedback, setFeedback] = useState<string | null>(null);
   const [sellQty, setSellQty] = useState<Record<string, string>>({});
   const [showRestockPicker, setShowRestockPicker] = useState<string | null>(null);
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
 
   if (!state?.gameStarted) return null;
   const { inventory, autoConsume, businesses } = state;
@@ -45,11 +47,13 @@ export default function Inventory() {
   }
 
   function consumeItem(itemId: string) {
+    hapticMedium();
     dispatch({ type: 'CONSUME_ITEM', payload: itemId });
     showFeedback('✅ Item used.');
   }
 
   function takeDrug(itemId: string, itemName: string) {
+    hapticHeavy();
     dispatch({ type: 'TAKE_DRUG', payload: itemId });
     const key = Object.keys(DRUG_EFFECTS).find(k => itemId.includes(k));
     const eff = key ? DRUG_EFFECTS[key] : null;
@@ -57,21 +61,25 @@ export default function Inventory() {
   }
 
   function sellItem(itemId: string, itemName: string, qty: number) {
-    if (qty <= 0) { showFeedback('⚠️ Enter a valid quantity.'); return; }
+    if (qty <= 0) { hapticError(); showFeedback('⚠️ Enter a valid quantity.'); return; }
     const invItem = inventory.find(i => i.id === itemId);
-    if (!invItem || invItem.quantity < qty) { showFeedback('⚠️ Not enough stock.'); return; }
-    if (!invItem.sellPrice) { showFeedback('⚠️ This item cannot be sold directly.'); return; }
+    if (!invItem || invItem.quantity < qty) { hapticError(); showFeedback('⚠️ Not enough stock.'); return; }
+    if (!invItem.sellPrice) { hapticError(); showFeedback('⚠️ This item cannot be sold directly.'); return; }
+    hapticSuccess();
     dispatch({ type: 'SELL_INVENTORY_ITEM', payload: { itemId, quantity: qty } });
     showFeedback(`✅ Sold ${qty} ${invItem.unit ?? 'unit(s)'} of ${itemName} for R${(invItem.sellPrice * qty).toLocaleString()}.`);
     setSellQty(prev => ({ ...prev, [itemId]: '' }));
+    if (invItem.quantity === qty) setSelectedItemId(null);
   }
 
   function restockBusiness(bizId: string, itemId: string, qty: number) {
     const invItem = inventory.find(i => i.id === itemId);
-    if (!invItem || invItem.quantity < qty) { showFeedback('⚠️ Not enough in inventory.'); return; }
+    if (!invItem || invItem.quantity < qty) { hapticError(); showFeedback('⚠️ Not enough in inventory.'); return; }
+    hapticMedium();
     dispatch({ type: 'RESTOCK_BUSINESS', payload: { businessId: bizId, itemId, quantity: qty, cost: 0 } });
     showFeedback(`✅ Moved ${qty} ${invItem.unit ?? 'unit(s)'} to business stock.`);
     setShowRestockPicker(null);
+    if (invItem.quantity === qty) setSelectedItemId(null);
   }
 
   function cookMeal(recipeId: string) {
@@ -80,10 +88,12 @@ export default function Inventory() {
     for (const ing of recipe.ingredients) {
       const item = inventory.find(i => i.id === ing.itemId);
       if (!item || item.quantity < ing.quantity) {
+        hapticError();
         showFeedback(`⚠️ Missing: ${ing.itemId.replace(/_/g, ' ')} ×${ing.quantity}`);
         return;
       }
     }
+    hapticSuccess();
     dispatch({ type: 'COOK_MEAL', payload: recipeId });
     showFeedback(`✅ Cooked: ${recipe.name}`);
   }
@@ -204,7 +214,7 @@ export default function Inventory() {
             </View>
           </ScrollView>
 
-          {/* Items */}
+          {/* Items Grid */}
           {tabItems.length === 0 ? (
             <InfoCard>
               <Text style={{ color: '#666', fontSize: 13, textAlign: 'center', paddingVertical: 12 }}>
@@ -212,108 +222,137 @@ export default function Inventory() {
               </Text>
             </InfoCard>
           ) : (
-            tabItems.map(item => (
-              <View
-                key={item.id}
-                style={{ borderWidth: 1, borderColor: '#1E1E1E', backgroundColor: '#0D0D0D', padding: 14, gap: 10 }}
-              >
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ color: '#eee', fontWeight: '700', fontSize: 14 }}>{item.name}</Text>
-                    <Text style={{ color: '#666', fontSize: 12, marginTop: 2 }}>
-                      {typeof item.quantity === 'number' && item.quantity % 1 !== 0
-                        ? item.quantity.toFixed(1)
-                        : item.quantity} {item.unit ?? 'unit(s)'}
-                      {item.hungerRestore ? `  ·  🍽️ +${item.hungerRestore}` : ''}
-                      {item.hygieneRestore ? `  ·  🧼 +${item.hygieneRestore}` : ''}
-                      {item.sellPrice ? `  ·  R${item.sellPrice}/unit` : ''}
-                    </Text>
-                  </View>
-                </View>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+              {tabItems.map(item => (
+                <Pressable
+                  key={item.id}
+                  onPress={() => {
+                    hapticLight();
+                    setSelectedItemId(selectedItemId === item.id ? null : item.id);
+                  }}
+                  style={{
+                    width: '30%',
+                    aspectRatio: 1,
+                    backgroundColor: selectedItemId === item.id ? '#1A1400' : '#111',
+                    borderWidth: 1,
+                    borderColor: selectedItemId === item.id ? GOLD : '#333',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    borderRadius: 8,
+                  }}
+                >
+                  <Text style={{ fontSize: 32 }}>{CATEGORY_ICONS[item.category] ?? '📦'}</Text>
+                  <Text style={{ color: '#eee', fontSize: 10, marginTop: 8, textAlign: 'center', paddingHorizontal: 4 }} numberOfLines={1}>
+                    {item.name}
+                  </Text>
+                  <Text style={{ color: GOLD, fontSize: 12, fontWeight: 'bold', marginTop: 2 }}>
+                    x{typeof item.quantity === 'number' && item.quantity % 1 !== 0 ? item.quantity.toFixed(1) : item.quantity}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
 
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                  {/* Use / Eat */}
-                  {USE_CATEGORIES.has(item.category) && item.category !== 'drug' && (
-                    <Pressable
-                      onPress={() => consumeItem(item.id)}
-                      style={{ paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: '#4CAF50', backgroundColor: '#0D1A0D' }}
-                    >
-                      <Text style={{ color: '#4CAF50', fontSize: 12, fontWeight: '700' }}>
-                        {item.category === 'food' || item.category === 'cooked_meal' || item.category === 'livestock_product' ? 'EAT' : 'USE'}
-                      </Text>
-                    </Pressable>
-                  )}
-
-                  {/* Take drug */}
-                  {item.category === 'drug' && (
-                    <Pressable
-                      onPress={() => takeDrug(item.id, item.name)}
-                      style={{ paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: '#CE93D8', backgroundColor: '#1A0030' }}
-                    >
-                      <Text style={{ color: '#CE93D8', fontSize: 12, fontWeight: '700' }}>TAKE</Text>
-                    </Pressable>
-                  )}
-
-                  {/* Sell */}
-                  {SELL_CATEGORIES.has(item.category) && item.sellPrice && (
-                    <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
-                      <TextInput
-                        value={sellQty[item.id] ?? ''}
-                        onChangeText={v => setSellQty(prev => ({ ...prev, [item.id]: v.replace(/[^0-9.]/g, '') }))}
-                        placeholder="Qty"
-                        placeholderTextColor="#444"
-                        keyboardType="numeric"
-                        style={{
-                          width: 60, height: 34, paddingHorizontal: 8, fontSize: 13,
-                          color: '#eee', borderWidth: 1, borderColor: '#333', backgroundColor: '#111',
-                        }}
-                      />
-                      <Pressable
-                        onPress={() => sellItem(item.id, item.name, parseFloat(sellQty[item.id] ?? '0'))}
-                        style={{ paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: GOLD, backgroundColor: '#1A1000' }}
-                      >
-                        <Text style={{ color: GOLD, fontSize: 12, fontWeight: '700' }}>SELL</Text>
-                      </Pressable>
-                      <Pressable
-                        onPress={() => sellItem(item.id, item.name, item.quantity)}
-                        style={{ paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: '#D4AF37', backgroundColor: '#1A1000' }}
-                      >
-                        <Text style={{ color: '#D4AF37', fontSize: 12, fontWeight: '700' }}>SELL ALL</Text>
-                      </Pressable>
-                    </View>
-                  )}
-
-                  {/* Stock to business */}
-                  {businesses.length > 0 && (item.category === 'drug' || item.category === 'meat' || item.category === 'livestock_product' || item.category === 'harvest') && (
-                    <Pressable
-                      onPress={() => setShowRestockPicker(showRestockPicker === item.id ? null : item.id)}
-                      style={{ paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: '#64B5F6', backgroundColor: '#001A2A' }}
-                    >
-                      <Text style={{ color: '#64B5F6', fontSize: 12, fontWeight: '700' }}>→ BUSINESS</Text>
-                    </Pressable>
-                  )}
-                </View>
-
-                {/* Business picker */}
-                {showRestockPicker === item.id && (
-                  <View style={{ borderWidth: 1, borderColor: '#222', backgroundColor: '#080808', padding: 10, gap: 6 }}>
-                    <Text style={{ color: '#888', fontSize: 11, marginBottom: 4 }}>Select business to restock:</Text>
-                    {businesses.map(biz => (
-                      <Pressable
-                        key={biz.id}
-                        onPress={() => restockBusiness(biz.id, item.id, Math.min(10, item.quantity))}
-                        style={{ padding: 10, borderWidth: 1, borderColor: '#1A1400', backgroundColor: '#111' }}
-                      >
-                        <Text style={{ color: GOLD, fontSize: 13 }}>{biz.name}</Text>
-                        <Text style={{ color: '#666', fontSize: 11 }}>
-                          Move {Math.min(10, item.quantity).toFixed(1)} {item.unit ?? 'unit(s)'}
+          {/* Selected Item Actions */}
+          {selectedItemId && (
+            <View style={{ borderWidth: 1, borderColor: GOLD, backgroundColor: '#0D0D0D', padding: 14, gap: 10, marginTop: 16 }}>
+              {(() => {
+                const item = inventory.find(i => i.id === selectedItemId);
+                if (!item) return null;
+                return (
+                  <>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: '#eee', fontWeight: '700', fontSize: 16 }}>{item.name}</Text>
+                        <Text style={{ color: '#666', fontSize: 12, marginTop: 2 }}>
+                          {typeof item.quantity === 'number' && item.quantity % 1 !== 0 ? item.quantity.toFixed(1) : item.quantity} {item.unit ?? 'unit(s)'}
+                          {item.hungerRestore ? `  ·  🍽️ +${item.hungerRestore}` : ''}
+                          {item.hygieneRestore ? `  ·  🧼 +${item.hygieneRestore}` : ''}
+                          {item.sellPrice ? `  ·  R${item.sellPrice}/unit` : ''}
                         </Text>
-                      </Pressable>
-                    ))}
-                  </View>
-                )}
-              </View>
-            ))
+                      </View>
+                    </View>
+
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                      {USE_CATEGORIES.has(item.category) && item.category !== 'drug' && (
+                        <Pressable
+                          onPress={() => consumeItem(item.id)}
+                          style={{ paddingHorizontal: 16, paddingVertical: 8, borderWidth: 1, borderColor: '#4CAF50', backgroundColor: '#0D1A0D', borderRadius: 6 }}
+                        >
+                          <Text style={{ color: '#4CAF50', fontSize: 12, fontWeight: '700' }}>
+                            {item.category === 'food' || item.category === 'cooked_meal' || item.category === 'livestock_product' ? 'EAT ITEM' : 'USE ITEM'}
+                          </Text>
+                        </Pressable>
+                      )}
+
+                      {item.category === 'drug' && (
+                        <Pressable
+                          onPress={() => takeDrug(item.id, item.name)}
+                          style={{ paddingHorizontal: 16, paddingVertical: 8, borderWidth: 1, borderColor: '#CE93D8', backgroundColor: '#1A0030', borderRadius: 6 }}
+                        >
+                          <Text style={{ color: '#CE93D8', fontSize: 12, fontWeight: '700' }}>TAKE DRUG</Text>
+                        </Pressable>
+                      )}
+
+                      {SELL_CATEGORIES.has(item.category) && item.sellPrice && (
+                        <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+                          <TextInput
+                            value={sellQty[item.id] ?? ''}
+                            onChangeText={v => setSellQty(prev => ({ ...prev, [item.id]: v.replace(/[^0-9.]/g, '') }))}
+                            placeholder="Qty"
+                            placeholderTextColor="#444"
+                            keyboardType="numeric"
+                            style={{
+                              width: 60, height: 36, paddingHorizontal: 8, fontSize: 13,
+                              color: '#eee', borderWidth: 1, borderColor: '#333', backgroundColor: '#111', borderRadius: 6
+                            }}
+                          />
+                          <Pressable
+                            onPress={() => sellItem(item.id, item.name, parseFloat(sellQty[item.id] ?? '0'))}
+                            style={{ paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: GOLD, backgroundColor: '#1A1000', borderRadius: 6 }}
+                          >
+                            <Text style={{ color: GOLD, fontSize: 12, fontWeight: '700' }}>SELL</Text>
+                          </Pressable>
+                          <Pressable
+                            onPress={() => sellItem(item.id, item.name, item.quantity)}
+                            style={{ paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: '#D4AF37', backgroundColor: '#1A1000', borderRadius: 6 }}
+                          >
+                            <Text style={{ color: '#D4AF37', fontSize: 12, fontWeight: '700' }}>SELL ALL</Text>
+                          </Pressable>
+                        </View>
+                      )}
+
+                      {businesses.length > 0 && (item.category === 'drug' || item.category === 'meat' || item.category === 'livestock_product' || item.category === 'harvest') && (
+                        <Pressable
+                          onPress={() => { hapticLight(); setShowRestockPicker(showRestockPicker === item.id ? null : item.id); }}
+                          style={{ paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: '#64B5F6', backgroundColor: '#001A2A', borderRadius: 6 }}
+                        >
+                          <Text style={{ color: '#64B5F6', fontSize: 12, fontWeight: '700' }}>RESTOCK BUSINESS</Text>
+                        </Pressable>
+                      )}
+                    </View>
+
+                    {showRestockPicker === item.id && (
+                      <View style={{ borderWidth: 1, borderColor: '#222', backgroundColor: '#080808', padding: 10, gap: 6, borderRadius: 6 }}>
+                        <Text style={{ color: '#888', fontSize: 11, marginBottom: 4 }}>Select business to restock:</Text>
+                        {businesses.map(biz => (
+                          <Pressable
+                            key={biz.id}
+                            onPress={() => restockBusiness(biz.id, item.id, Math.min(10, item.quantity))}
+                            style={{ padding: 10, borderWidth: 1, borderColor: '#1A1400', backgroundColor: '#111', borderRadius: 4 }}
+                          >
+                            <Text style={{ color: GOLD, fontSize: 13 }}>{biz.name}</Text>
+                            <Text style={{ color: '#666', fontSize: 11 }}>
+                              Move {Math.min(10, item.quantity).toFixed(1)} {item.unit ?? 'unit(s)'}
+                            </Text>
+                          </Pressable>
+                        ))}
+                      </View>
+                    )}
+                  </>
+                );
+              })()}
+            </View>
           )}
         </View>
       </ScrollView>

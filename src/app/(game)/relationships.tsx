@@ -12,13 +12,14 @@ function getRelColor(l: number) { return l >= 70 ? '#4CAF50' : l >= 40 ? '#FFB81
 const BG_ICONS: Record<string, string> = { family: '👨‍👩‍👧', farmer: '🌾', business: '💼', professional: '🎓', hustler: '⚡', gangster: '💀', dealer: '💊', criminal: '🔪', neighbour: '🏘️', default: '👤' };
 const ROMANCE_LABELS: Record<string, string> = { none: '', interest: '❤️ Interest', dating: '💕 Dating', partner: '💍 Partner' };
 
-function NpcCard({ npc, onInteract, onFlirt, onRomance, onBenefit, onRemove }: {
+function NpcCard({ npc, onInteract, onFlirt, onRomance, onBenefit, onRemove, onGift }: {
   npc: NPC;
   onInteract: (id: string, action: 'greet' | 'help' | 'conflict') => void;
   onFlirt: (id: string) => void;
   onRomance: (id: string) => void;
   onBenefit: (id: string, benefit: string) => void;
   onRemove: (id: string) => void;
+  onGift: (id: string) => void;
 }) {
   const bgIcon = BG_ICONS[npc.npcBackground ?? 'default'] ?? BG_ICONS.default;
   const relLabel = getRelLabel(npc.relationshipLevel);
@@ -67,6 +68,9 @@ function NpcCard({ npc, onInteract, onFlirt, onRomance, onBenefit, onRemove }: {
         <Pressable onPress={() => onInteract(npc.id, 'help')} className="px-3 py-1.5" style={{ backgroundColor: '#0A0D1A', borderWidth: 1, borderColor: '#64B5F6' }}>
           <Text className="text-xs font-bold" style={{ color: '#64B5F6' }}>🤝 Help</Text>
         </Pressable>
+        <Pressable onPress={() => onGift(npc.id)} className="px-3 py-1.5" style={{ backgroundColor: '#1A1400', borderWidth: 1, borderColor: '#FFB81C' }}>
+          <Text className="text-xs font-bold" style={{ color: '#FFB81C' }}>🎁 Gift</Text>
+        </Pressable>
         {canFlirt && (
           <Pressable onPress={() => onFlirt(npc.id)} className="px-3 py-1.5" style={{ backgroundColor: '#1A0010', borderWidth: 1, borderColor: '#FF69B4' }}>
             <Text className="text-xs font-bold" style={{ color: '#FF69B4' }}>😉 Flirt</Text>
@@ -95,8 +99,10 @@ function NpcCard({ npc, onInteract, onFlirt, onRomance, onBenefit, onRemove }: {
 export default function Relationships() {
   const { state, dispatch } = useGame();
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [giftTargetId, setGiftTargetId] = useState<string | null>(null);
+
   if (!state?.gameStarted) return null;
-  const { npcs, stats } = state;
+  const { npcs, stats, inventory } = state;
 
   function showFeedback(msg: string) { setFeedback(msg); setTimeout(() => setFeedback(null), 2500); }
   function interact(npcId: string, action: 'greet' | 'help' | 'conflict') {
@@ -107,6 +113,12 @@ export default function Relationships() {
   function advanceRomance(npcId: string) { dispatch({ type: 'ADVANCE_ROMANCE', payload: npcId }); showFeedback('❤️ Romantic status updated!'); }
   function applyBenefit(npcId: string, benefit: string) { dispatch({ type: 'NPC_BENEFIT', payload: { npcId, benefit } }); showFeedback('✅ Benefit applied. Check Events.'); }
   function removeNpc(npcId: string) { dispatch({ type: 'REMOVE_NPC', payload: npcId }); showFeedback('Contact removed from your network.'); }
+  function handleGift(itemId: string, itemName: string) {
+    if (!giftTargetId) return;
+    dispatch({ type: 'GIFT_NPC', payload: { npcId: giftTargetId, itemId } });
+    showFeedback(`🎁 Gave ${itemName} as a gift!`);
+    setGiftTargetId(null);
+  }
 
   const permanentNpcs = npcs.filter(n => n.isPermanent);
   const partnerNpc = npcs.find(n => n.romanticStage === 'partner');
@@ -150,29 +162,60 @@ export default function Relationships() {
           {partnerNpc && (
             <>
               <Text className="text-muted-foreground text-xs mb-2 mt-3 tracking-wider">💍 PARTNER</Text>
-              <NpcCard npc={partnerNpc} onInteract={interact} onFlirt={flirtNpc} onRomance={advanceRomance} onBenefit={applyBenefit} onRemove={removeNpc} />
+              <NpcCard npc={partnerNpc} onInteract={interact} onFlirt={flirtNpc} onRomance={advanceRomance} onBenefit={applyBenefit} onRemove={removeNpc} onGift={setGiftTargetId} />
             </>
           )}
           {romanticNpcs.length > 0 && (
             <>
               <Text className="text-muted-foreground text-xs mb-2 mt-3 tracking-wider">❤️ ROMANTIC INTERESTS</Text>
-              {romanticNpcs.map(npc => <NpcCard key={npc.id} npc={npc} onInteract={interact} onFlirt={flirtNpc} onRomance={advanceRomance} onBenefit={applyBenefit} onRemove={removeNpc} />)}
+              {romanticNpcs.map(npc => <NpcCard key={npc.id} npc={npc} onInteract={interact} onFlirt={flirtNpc} onRomance={advanceRomance} onBenefit={applyBenefit} onRemove={removeNpc} onGift={setGiftTargetId} />)}
             </>
           )}
 
           <Text className="text-muted-foreground text-xs mb-2 mt-3 tracking-wider">FAMILY & NEIGHBOURS</Text>
           {permanentNpcs.length === 0
             ? <InfoCard><Text className="text-muted-foreground text-xs">No permanent contacts loaded.</Text></InfoCard>
-            : permanentNpcs.map(npc => <NpcCard key={npc.id} npc={npc} onInteract={interact} onFlirt={flirtNpc} onRomance={advanceRomance} onBenefit={applyBenefit} onRemove={removeNpc} />)
+            : permanentNpcs.map(npc => <NpcCard key={npc.id} npc={npc} onInteract={interact} onFlirt={flirtNpc} onRomance={advanceRomance} onBenefit={applyBenefit} onRemove={removeNpc} onGift={setGiftTargetId} />)
           }
 
           <Text className="text-muted-foreground text-xs mb-2 mt-3 tracking-wider">CONTACTS ({contactNpcs.length}/3)</Text>
           {contactNpcs.length === 0
             ? <InfoCard><Text className="text-muted-foreground text-sm text-center py-2">No contacts yet.{'\n'}Socialise daily to meet people in your area.</Text></InfoCard>
-            : contactNpcs.map(npc => <NpcCard key={npc.id} npc={npc} onInteract={interact} onFlirt={flirtNpc} onRomance={advanceRomance} onBenefit={applyBenefit} onRemove={removeNpc} />)
+            : contactNpcs.map(npc => <NpcCard key={npc.id} npc={npc} onInteract={interact} onFlirt={flirtNpc} onRomance={advanceRomance} onBenefit={applyBenefit} onRemove={removeNpc} onGift={setGiftTargetId} />)
           }
         </View>
       </ScrollView>
+
+      {giftTargetId && (
+        <View className="absolute inset-0 justify-center px-4" style={{ backgroundColor: 'rgba(0,0,0,0.85)' }}>
+          <View className="bg-background max-h-3/4 p-4 rounded-xl border border-warning">
+            <Text className="text-warning text-lg font-bold text-center mb-4">Select a Gift</Text>
+            <ScrollView className="mb-4">
+              {inventory.filter(i => i.quantity > 0).length === 0 ? (
+                <Text className="text-muted-foreground text-center py-4">Your inventory is empty.</Text>
+              ) : (
+                inventory.filter(i => i.quantity > 0).map(item => (
+                  <Pressable
+                    key={item.id}
+                    onPress={() => handleGift(item.id, item.name)}
+                    className="p-3 mb-2 flex-row justify-between items-center"
+                    style={{ backgroundColor: '#111', borderWidth: 1, borderColor: '#333' }}
+                  >
+                    <View>
+                      <Text className="text-foreground font-bold">{item.name}</Text>
+                      <Text className="text-muted-foreground text-xs">Value: R{item.sellPrice ?? 0}</Text>
+                    </View>
+                    <Text className="text-warning font-bold">GIVE</Text>
+                  </Pressable>
+                ))
+              )}
+            </ScrollView>
+            <Pressable onPress={() => setGiftTargetId(null)} className="py-3 items-center" style={{ backgroundColor: '#1A0000', borderWidth: 1, borderColor: '#E32636' }}>
+              <Text className="text-destructive font-bold">CANCEL</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
     </View>
   );
 }

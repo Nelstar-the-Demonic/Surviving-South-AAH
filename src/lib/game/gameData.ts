@@ -1304,6 +1304,8 @@ export function createInitialGameState(
     education: 30, reputation: 35,
     discipline: 40, endurance: 40,
     drugEffectDaysLeft: 0,
+    sickness: null,
+    addictions: [],
   };
   const stats = { ...defaultStats, ...bgData.startingStats };
 
@@ -1332,6 +1334,9 @@ export function createInitialGameState(
     actionsUsedToday: [],
     maxActionsPerDay: 4,
 
+    weather: 'Sunny',
+    perks: [],
+
     playerName,
     gender,
     background,
@@ -1354,6 +1359,8 @@ export function createInitialGameState(
       noticeLockUntilDay: null,
       interestRate: 0.075,
       lastInterestDay: 1,
+      creditScore: 500,
+      loans: [],
     },
     financeHistory: [{
       day: 1,
@@ -1408,6 +1415,7 @@ export function createInitialGameState(
       cannabisSalesCaught: 0,
       totalCrimes: 0,
       crimeRecords: [],
+      wantedLevel: 0,
     },
 
     lastDaySummary: null,

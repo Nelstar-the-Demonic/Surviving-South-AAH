@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { PortalHost } from '@rn-primitives/portal';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { GameProvider } from '@/store/gameContext';
+import { DaySummaryModal } from '@/components/game/DaySummaryModal';
 import "../global.css";
 
 export default function RootLayout() {
@@ -14,6 +15,7 @@ export default function RootLayout() {
           <Stack.Screen name="index" />
           <Stack.Screen name="character-creation" />
         </Stack>
+        <DaySummaryModal />
         <PortalHost />
       </GameProvider>
     </GestureHandlerRootView>

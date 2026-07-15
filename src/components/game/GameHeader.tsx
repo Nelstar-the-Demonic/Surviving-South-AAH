@@ -17,6 +17,13 @@ const C = {
   textMuted:  '#5A5A72',
 };
 
+const PHASE_COLORS: Record<string, string> = {
+  morning:   '#131826', // dawn/blue tint
+  afternoon: '#261F13', // warm/golden tint
+  evening:   '#1A101C', // dusk/purple tint
+  night:     '#05050A', // dark/midnight
+};
+
 interface ExtraStat {
   label: string;
   value: string;
@@ -41,8 +48,10 @@ export function GameHeader({ title, subtitle, showBack = true, extraStats }: Gam
   const energyColor = energy >= 50 ? C.green : energy >= 25 ? C.gold : C.red;
   const hungerColor = hunger >= 50 ? C.green : hunger >= 25 ? C.gold : C.red;
 
+  const bgPhaseColor = PHASE_COLORS[state?.dayPhase ?? 'morning'] || C.surface;
+
   return (
-    <View style={{ backgroundColor: C.surface, borderBottomWidth: 1, borderBottomColor: C.border, paddingTop: 48, paddingHorizontal: 16, paddingBottom: 12, zIndex: 10, elevation: 10 }}>
+    <View style={{ backgroundColor: bgPhaseColor, borderBottomWidth: 1, borderBottomColor: C.border, paddingTop: 48, paddingHorizontal: 16, paddingBottom: 12, zIndex: 10, elevation: 10 }}>
       {/* Row 1: Cash + stats */}
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>

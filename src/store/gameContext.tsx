@@ -112,6 +112,9 @@ type GameAction =
   | { type: 'ADVANCE_DAY_RESET_BONUS_ACTIONS' }
   | { type: 'REGISTER_BUSINESS'; payload: string }
   | { type: 'DISMISS_DAY_SUMMARY' }
+  | { type: 'TAKE_LOAN'; payload: { id: string; amount: number; dailyInterest: number } }
+  | { type: 'PAY_LOAN'; payload: { id: string; amount: number } }
+  | { type: 'GIFT_NPC'; payload: { npcId: string; itemId: string } }
   | { type: 'HARVEST_ALL_CROPS' }
   | { type: 'HEAL_ALL_LIVESTOCK'; payload: string }
   | { type: 'SELL_LIVESTOCK_BULK'; payload: { type: string; isMale: boolean; count: number; sellExcessOnly: boolean } }
@@ -126,6 +129,11 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       return {
         ...blank,
         ...action.payload,
+        weather:          action.payload.weather         ?? blank.weather,
+        perks:            action.payload.perks           ?? blank.perks,
+        stats:            { ...blank.stats, ...action.payload.stats },
+        bank:             { ...blank.bank, ...action.payload.bank },
+        crimeState:       { ...blank.crimeState, ...action.payload.crimeState },
         inventory:        action.payload.inventory       ?? blank.inventory,
         properties:       action.payload.properties      ?? blank.properties,
         vehicles:         action.payload.vehicles        ?? blank.vehicles,
@@ -752,15 +760,21 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         s = {
           ...s,
           injury: {
+            ...s.injury,
             injured: true,
+            daysInHospital: 3 + Math.floor(Math.random() * 5),
             severity: 'serious',
-            daysInHospital: 7,
-            daysHealing: 30,
-            crippled: false,
-            description: 'You were injured in an incident.',
+            description: `Injured during event: ${event.title}`,
           },
         };
       }
+      if (choice.effect.enrollJob) {
+        s = enrollFormalJob(s, choice.effect.enrollJob);
+      }
+      if (choice.effect.changeLocation) {
+        s = { ...s, location: choice.effect.changeLocation };
+      }
+
 
       // NPC meet event: accept adds NPC, reject sets cooldown
       if (choice.npcData) {
@@ -822,6 +836,34 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       };
     }
 
+    case 'GIFT_NPC': {
+      const { npcId, itemId } = action.payload;
+      const npcIndex = state.npcs.findIndex(n => n.id === npcId);
+      const itemIndex = state.inventory.findIndex(i => i.id === itemId);
+      if (npcIndex === -1 || itemIndex === -1 || state.inventory[itemIndex].quantity < 1) return state;
+
+      const item = state.inventory[itemIndex];
+      const newInventory = [...state.inventory];
+      newInventory[itemIndex] = { ...item, quantity: item.quantity - 1 };
+
+      const valueBoost = item.sellPrice ? Math.floor(item.sellPrice / 10) : 5;
+      const finalBoost = Math.max(2, Math.min(15, valueBoost)); // min 2, max 15 rep per gift
+
+      const newNpcs = [...state.npcs];
+      newNpcs[npcIndex] = {
+        ...newNpcs[npcIndex],
+        relationshipLevel: Math.min(100, (newNpcs[npcIndex].relationshipLevel || 0) + finalBoost),
+        trust: Math.min(100, (newNpcs[npcIndex].trust || 0) + finalBoost),
+        conflict: Math.max(0, (newNpcs[npcIndex].conflict || 0) - finalBoost),
+      };
+
+      return {
+        ...state,
+        inventory: newInventory,
+        npcs: newNpcs,
+      };
+    }
+
     case 'UPDATE_SETTINGS':
       return { ...state, settings: { ...state.settings, ...action.payload } };
 
@@ -829,14 +871,48 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       return { ...state, autoConsume: { ...state.autoConsume, enabled: !state.autoConsume.enabled } };
 
     case 'CHANGE_LOCATION': {
+      const dest = action.payload as import('@/types/game').Location;
       const hasVehicle = state.vehicles.length > 0;
       const moveCost = hasVehicle ? 0 : 50;
       if (!hasVehicle && state.cash < moveCost) return state;
-      return {
+
+      const isDrama = Math.random() < 0.05; // 5% chance of travel drama
+      
+      let nextState = {
         ...state,
-        location: action.payload as any,
         cash: state.cash - moveCost,
       };
+
+      if (isDrama) {
+        const dramas = [
+          { title: 'Taxi Strike', desc: 'The taxi association is protesting on the highway. Traffic is at a standstill.' },
+          { title: 'Vehicle Breakdown', desc: 'Your transport broke down on the side of the road.' },
+          { title: 'Roadblock', desc: 'Metro police are stopping vehicles for inspection.' }
+        ];
+        const drama = dramas[Math.floor(Math.random() * dramas.length)];
+        
+        nextState = {
+          ...nextState,
+          pendingEvents: [
+            ...nextState.pendingEvents,
+            {
+              id: `travel_drama_${state.day}_${Math.random()}`,
+              title: `Travel Drama: ${drama.title}`,
+              description: drama.desc,
+              type: 'social',
+              day: state.day,
+              choices: [
+                { label: 'Wait it out (Delays you, +5 Stress)', outcome: 'You eventually arrived safely.', effect: { statsChange: { stress: 5 }, changeLocation: dest } },
+                { label: 'Bribe/Pay alternative transport (R100)', outcome: 'You found another way around.', effect: { cashChange: -100, changeLocation: dest } },
+              ]
+            }
+          ]
+        };
+      } else {
+        nextState.location = dest;
+      }
+
+      return nextState;
     }
 
     case 'GET_JOB': {
@@ -864,8 +940,29 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     case 'APPLY_ANIMAL_FEED':
       return applyAnimalFeed(state, action.payload.livestockType, action.payload.feedKg);
 
-    case 'ENROLL_FORMAL_JOB':
-      return enrollFormalJob(state, action.payload);
+    case 'ENROLL_FORMAL_JOB': {
+      const chain = getJobChain(action.payload);
+      if (!chain) return state;
+      const firstRank = chain.ranks[0];
+      return {
+        ...state,
+        pendingEvents: [
+          ...state.pendingEvents,
+          {
+            id: `interview_${action.payload}_${state.day}`,
+            title: `Job Interview: ${firstRank.title}`,
+            description: `You have arrived for your interview at the ${chain.industry} department. The interviewer looks stern.`,
+            type: 'employment',
+            day: state.day,
+            choices: [
+              { label: 'Be honest and professional.', outcome: 'They liked your attitude! You got the job.', effect: { statsChange: { stress: 10 }, enrollJob: action.payload } },
+              { label: 'Exaggerate your experience.', outcome: 'They caught your lie. You were rejected.', effect: { statsChange: { stress: 20 } } },
+              { label: 'Demand a high salary immediately.', outcome: 'They laughed you out of the room.', effect: { statsChange: { reputation: -5 } } },
+            ]
+          }
+        ]
+      };
+    }
 
     case 'RESIGN_FORMAL_JOB':
       return resignFormalJob(state);
@@ -1126,6 +1223,49 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'DISMISS_DAY_SUMMARY':
       return { ...state, showDaySummary: false };
+
+    case 'TAKE_LOAN': {
+      const loan = action.payload;
+      return {
+        ...state,
+        bank: {
+          ...state.bank,
+          currentBalance: state.bank.currentBalance + loan.amount
+        },
+        loans: [...state.loans, { ...loan, remaining: loan.amount, paymentsMissed: 0 }],
+        financeHistory: [...state.financeHistory, {
+          day: state.day,
+          description: `Loan Disbursement (${loan.id})`,
+          amount: loan.amount,
+          category: 'bank'
+        }]
+      };
+    }
+
+    case 'PAY_LOAN': {
+      const { id, amount } = action.payload;
+      const loan = state.loans.find(l => l.id === id);
+      if (!loan || state.bank.currentBalance < amount) return state;
+      
+      const newRemaining = Math.max(0, loan.remaining - amount);
+      const isPaidOff = newRemaining === 0;
+
+      return {
+        ...state,
+        bank: {
+          ...state.bank,
+          currentBalance: state.bank.currentBalance - amount
+        },
+        loans: isPaidOff ? state.loans.filter(l => l.id !== id) : state.loans.map(l => l.id === id ? { ...l, remaining: newRemaining } : l),
+        creditScore: state.creditScore + (isPaidOff ? 50 : 2), // Boost score for payoff or payment
+        financeHistory: [...state.financeHistory, {
+          day: state.day,
+          description: `Loan Payment (${id})`,
+          amount: -amount,
+          category: 'bank'
+        }]
+      };
+    }
 
     case 'HARVEST_ALL_CROPS':
       return harvestAllCrops(state);

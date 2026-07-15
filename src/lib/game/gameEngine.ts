@@ -55,12 +55,49 @@ export function applyDailyTick(state: GameState): GameState {
     stats.stress = clamp(stats.stress - Math.floor(currentProp.comfortBonus / 25));
   }
 
+  // --- New Systems Overhaul ---
+  if (stats.sickness === 'Cold') { stats.health -= 5; }
+  else if (stats.sickness === 'Flu') { stats.health -= 15; stats.energy -= 10; }
+  else if (stats.sickness === 'Food Poisoning') { stats.health -= 20; stats.hunger -= 20; stats.energy -= 20; }
+  
+  if (stats.addictions && stats.addictions.length > 0) { 
+    stats.stress += 5 * stats.addictions.length; 
+  }
+  
+  stats.health = clamp(stats.health);
+  stats.energy = clamp(stats.energy);
+  stats.hunger = clamp(stats.hunger);
+  stats.stress = clamp(stats.stress);
+  
+  const weathers = ['Sunny', 'Sunny', 'Sunny', 'Rain', 'Heatwave', 'Storm'];
+  const newWeather = weathers[Math.floor(Math.random() * weathers.length)] as any;
+
+  const newPerks = [...(s.perks || [])];
+  if (stats.intelligence >= 60 && !newPerks.includes('Smart')) newPerks.push('Smart');
+  if (stats.fitness >= 70 && !newPerks.includes('Athletic')) newPerks.push('Athletic');
+  if (stats.reputation >= 80 && !newPerks.includes('Connected')) newPerks.push('Connected');
+  // --- End New Systems ---
+
   // Auto-consume
   if (s.autoConsume.enabled && stats.hunger < s.autoConsume.hungerThreshold) {
     const result = autoConsumeFood(s, stats);
     s = result.state;
     stats = result.stats;
   }
+
+  const todayFinance = s.financeHistory.filter(f => f.day === s.day);
+  const income = todayFinance.filter(f => f.amount > 0).reduce((sum, f) => sum + f.amount, 0);
+  const expenses = todayFinance.filter(f => f.amount < 0).reduce((sum, f) => sum + Math.abs(f.amount), 0);
+  const eventsStr = s.eventHistory.filter(e => e.includes(`Day ${s.day}:`));
+  
+  const lastDaySummary = {
+    day: s.day,
+    income,
+    expenses,
+    statsChanges: {},
+    events: eventsStr,
+    highlights: s.actionsUsedToday.map(a => a.replace(/_/g, ' ')),
+  };
 
   // Advance day, reset actions
   s = {
@@ -70,7 +107,15 @@ export function applyDailyTick(state: GameState): GameState {
     age: s.age + (s.day % 365 === 0 ? 1 : 0),
     actionsUsedToday: [],
     dayPhase: 'morning',
+    weather: newWeather,
+    perks: newPerks,
+    crimeState: {
+      ...s.crimeState,
+      wantedLevel: Math.max(0, (s.crimeState.wantedLevel || 0) - 2),
+    },
     daysUntilNextNpcEncounter: Math.max(0, (s.daysUntilNextNpcEncounter ?? 0) - 1),
+    lastDaySummary,
+    showDaySummary: true,
     ...(s.prison.imprisoned && {
       prison: {
         ...s.prison,
@@ -82,6 +127,38 @@ export function applyDailyTick(state: GameState): GameState {
   // Monthly rent payment
   if (s.day % 30 === 0) {
     s = applyMonthlyExpenses(s);
+  }
+
+  // Loan processing
+  if (s.bank.loans && s.bank.loans.length > 0) {
+    let newLoans = [];
+    let cash = s.cash;
+    let newFinanceHistory = [...s.financeHistory];
+    for (const loan of s.bank.loans) {
+      const dailyInterestAmt = loan.remaining * loan.dailyInterest;
+      let remaining = loan.remaining + dailyInterestAmt;
+      const dailyPayment = Math.min(remaining, Math.ceil(loan.amount * 0.02)); // ~2% daily payment
+      
+      if (cash >= dailyPayment) {
+        cash -= dailyPayment;
+        remaining -= dailyPayment;
+        newFinanceHistory.push({ day: s.day, description: 'Loan Repayment', amount: -dailyPayment, category: 'bank' });
+      } else {
+        loan.paymentsMissed = (loan.paymentsMissed || 0) + 1;
+        s.bank.creditScore = Math.max(300, (s.bank.creditScore || 500) - 10);
+        stats.stress = clamp(stats.stress + 5);
+      }
+      
+      if (remaining > 0) {
+        newLoans.push({ ...loan, remaining });
+      } else {
+        s.bank.creditScore = Math.min(850, (s.bank.creditScore || 500) + 20);
+      }
+    }
+    s.cash = cash;
+    s.bank.loans = newLoans;
+    s.financeHistory = newFinanceHistory;
+    s.stats = stats;
   }
 
   // Bank interest
@@ -731,6 +808,24 @@ export function generateDailyEvents(state: GameState): GameState {
 
   const possible: GameEvent[] = [];
 
+  // Enemy Check
+  const enemies = state.npcs.filter(n => n.isEnemy || n.trust < 0 || n.conflict > 50);
+  if (enemies.length > 0 && Math.random() < 0.15) { // 15% chance per week to get attacked by enemy
+    const enemy = enemies[0];
+    possible.push({
+      id: `enemy_sabotage_${state.day}`,
+      title: `⚠️ ${enemy.name} is seeking revenge!`,
+      description: `${enemy.name} has tracked you down and wants to settle the score. They brought friends.`,
+      type: 'social',
+      day: state.day,
+      choices: [
+        { label: 'Fight them (Needs high fitness)', outcome: 'You fought them off but took damage.', effect: { statsChange: { health: -15, stress: 10, fitness: 2 } } },
+        { label: 'Pay them off (R500)', outcome: 'You paid them off... for now.', effect: { cashChange: -500, statsChange: { stress: -5 } } },
+        { label: 'Run away (High risk)', outcome: 'You managed to escape, but dropped some cash.', effect: { cashChange: -150, statsChange: { stress: 20 } } },
+      ],
+    });
+  }
+
   // Business negative event (robbery, supplier issue)
   if (hasBusiness) {
     const roll = Math.random();
@@ -906,6 +1001,14 @@ export function performWork(state: GameState, jobId: string): GameState {
     indExp[industry] = (indExp[industry] ?? 0) + 3;
   }
 
+  // Weather modifier for informal jobs
+  let finalEnergyCost = job.energyCost;
+  if (job.type === 'informal' || job.type === 'hustle') {
+    if (state.weather === 'Heatwave') finalEnergyCost += 15;
+    if (state.weather === 'Storm') finalEnergyCost += 20;
+    if (state.weather === 'Rain') finalEnergyCost += 5;
+  }
+
   return {
     ...state,
     cash: state.cash + income,
@@ -913,7 +1016,7 @@ export function performWork(state: GameState, jobId: string): GameState {
     industryExperience: indExp,
     stats: {
       ...state.stats,
-      energy: clamp(state.stats.energy - job.energyCost),
+      energy: clamp(state.stats.energy - finalEnergyCost),
       stress: clamp(state.stats.stress + job.stressGain),
       happiness: clamp(state.stats.happiness + 5),
       hunger: clamp(state.stats.hunger - 10),
@@ -2028,6 +2131,10 @@ export function performCrime(state: GameState, crimeId: string): GameState {
   // Reputation modifier (higher rep = slightly more known = riskier)
   if (state.stats.reputation > 60) successRate -= 5;
 
+  // Heat / Wanted Level modifier (reduces success rate based on heat)
+  const currentHeat = state.crimeState?.wantedLevel || 0;
+  successRate -= Math.floor(currentHeat / 2); // 100 heat = -50% success rate
+
   successRate = Math.min(95, Math.max(5, successRate));
 
   const succeeded = Math.random() * 100 < successRate;
@@ -2044,7 +2151,8 @@ export function performCrime(state: GameState, crimeId: string): GameState {
     actionsUsedToday: [...state.actionsUsedToday, `crime_${crimeId}`],
   };
 
-  const crimeState = s.crimeState ?? { cannabisSalesCaught: 0, totalCrimes: 0, crimeRecords: [] };
+  const crimeState = s.crimeState ?? { cannabisSalesCaught: 0, totalCrimes: 0, crimeRecords: [], wantedLevel: 0 };
+  const heatAdded = Math.max(5, Math.floor(crimeDef.sentenceDays / 5)); // e.g., Shoplifting adds 5, Murder adds 36
 
   if (succeeded) {
     const reward = crimeDef.baseCashReward.min +
@@ -2063,6 +2171,7 @@ export function performCrime(state: GameState, crimeId: string): GameState {
       crimeState: {
         ...crimeState,
         totalCrimes: crimeState.totalCrimes + 1,
+        wantedLevel: Math.min(100, (crimeState.wantedLevel || 0) + heatAdded),
         crimeRecords: [...crimeState.crimeRecords, {
           day: s.day,
           crime: crimeDef.name as CrimeType,
@@ -2108,6 +2217,7 @@ export function performCrime(state: GameState, crimeId: string): GameState {
       crimeState: {
         ...crimeState,
         totalCrimes: crimeState.totalCrimes + 1,
+        wantedLevel: Math.min(100, (crimeState.wantedLevel || 0) + heatAdded + 15), // +15 extra heat if caught
         cannabisSalesCaught: isCannabisSale ? cannabisCaught : crimeState.cannabisSalesCaught,
         crimeRecords: [...crimeState.crimeRecords, {
           day: s.day,

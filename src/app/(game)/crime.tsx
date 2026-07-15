@@ -68,9 +68,9 @@ export default function CrimeScreen() {
   return (
     <View className="flex-1 bg-background">
       <GameHeader title="Crime" subtitle="High risk, high reward" extraStats={[
+        { label: 'Heat Level', value: `${crimeState?.wantedLevel ?? 0}%`, color: (crimeState?.wantedLevel ?? 0) > 50 ? '#E32636' : (crimeState?.wantedLevel ?? 0) > 20 ? '#FFB81C' : '#4CAF50' },
         { label: 'Weapon Bonus', value: hasWeapon ? `+${weaponBonus}%` : 'None', color: hasWeapon ? '#FFB81C' : '#666' },
         { label: 'Crimes Done', value: String(crimeState?.totalCrimes ?? 0) },
-        { label: 'Location', value: location },
       ]} />
 
       <ScrollView contentInsetAdjustmentBehavior="automatic">

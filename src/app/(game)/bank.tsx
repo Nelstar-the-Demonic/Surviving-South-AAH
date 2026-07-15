@@ -9,7 +9,7 @@ import { formatMoney } from '@/lib/game/gameEngine';
 export default function Bank() {
   const router = useRouter();
   const { state, dispatch } = useGame();
-  const [tab, setTab] = useState<'current' | 'notice'>('current');
+  const [tab, setTab] = useState<'current' | 'notice' | 'credit'>('current');
   const [amount, setAmount] = useState('');
   const [feedback, setFeedback] = useState<string | null>(null);
 
@@ -115,8 +115,8 @@ export default function Bank() {
           </View>
 
           {/* Tab strip */}
-          <View className="flex-row gap-3 mb-4">
-            {(['current', 'notice'] as const).map(t => (
+          <View className="flex-row gap-2 mb-4">
+            {(['current', 'notice', 'credit'] as const).map(t => (
               <Pressable
                 key={t}
                 onPress={() => setTab(t)}
@@ -127,8 +127,8 @@ export default function Bank() {
                   backgroundColor: tab === t ? '#1A1400' : '#0D0D0D',
                 }}
               >
-                <Text style={{ color: tab === t ? '#FFB81C' : '#666' }} className="font-bold text-sm">
-                  {t === 'current' ? 'CURRENT ACCOUNT' : '32-DAY NOTICE'}
+                <Text style={{ color: tab === t ? '#FFB81C' : '#666' }} className="font-bold text-xs text-center">
+                  {t === 'current' ? 'CURRENT' : t === 'notice' ? 'NOTICE' : 'CREDIT'}
                 </Text>
               </Pressable>
             ))}
@@ -270,6 +270,106 @@ export default function Bank() {
                   </Pressable>
                 </View>
               )}
+            </>
+          )}
+          {/* CREDIT ACCOUNT */}
+          {tab === 'credit' && (
+            <>
+              <InfoCard title="Credit & Loans" accent>
+                <View className="flex-row justify-between items-start">
+                  <View>
+                    <Text className="text-muted-foreground text-xs">CREDIT SCORE</Text>
+                    <Text style={{ color: state.creditScore >= 700 ? '#4CAF50' : state.creditScore >= 500 ? '#FFB81C' : '#E32636' }} className="text-3xl font-bold">
+                      {state.creditScore}
+                    </Text>
+                  </View>
+                  <Text className="text-4xl">💳</Text>
+                </View>
+                <Text className="text-muted-foreground text-xs mt-2">
+                  Maintain a high credit score to unlock better loan terms. Missed payments lower your score.
+                </Text>
+              </InfoCard>
+
+              {/* Active Loans */}
+              {state.loans.length > 0 && (
+                <View className="mb-4">
+                  <Text className="text-xs font-bold text-muted-foreground mb-2">ACTIVE LOANS</Text>
+                  {state.loans.map(loan => (
+                    <View key={loan.id} className="p-4 mb-2" style={{ borderWidth: 1, borderColor: '#333', backgroundColor: '#0D0D0D' }}>
+                      <View className="flex-row justify-between mb-2">
+                        <Text className="font-bold" style={{ color: '#eee' }}>{loan.id.split('_')[0].toUpperCase()} LOAN</Text>
+                        <Text className="text-xs" style={{ color: '#E32636' }}>{(loan.dailyInterest * 100).toFixed(1)}% /day</Text>
+                      </View>
+                      <View className="flex-row justify-between items-center mb-3">
+                        <View>
+                          <Text className="text-muted-foreground text-xs">OWED</Text>
+                          <Text style={{ color: '#E32636' }} className="font-bold text-lg">{formatMoney(loan.remaining)}</Text>
+                        </View>
+                        <View className="items-end">
+                          <Text className="text-muted-foreground text-xs">MISSED</Text>
+                          <Text style={{ color: loan.paymentsMissed > 0 ? '#E32636' : '#4CAF50' }} className="font-bold">{loan.paymentsMissed}</Text>
+                        </View>
+                      </View>
+                      <Pressable
+                        onPress={() => {
+                          if (bank.currentBalance < loan.remaining) {
+                            showFeedback('⚠️ Insufficient bank balance to pay off.');
+                            return;
+                          }
+                          dispatch({ type: 'PAY_LOAN', payload: { id: loan.id, amount: loan.remaining } });
+                          showFeedback(`✅ Paid off loan!`);
+                        }}
+                        className="py-2 items-center"
+                        style={{ backgroundColor: bank.currentBalance >= loan.remaining ? '#1A1000' : '#111', borderWidth: 1, borderColor: bank.currentBalance >= loan.remaining ? '#FFB81C' : '#333' }}
+                      >
+                        <Text style={{ color: bank.currentBalance >= loan.remaining ? '#FFB81C' : '#555' }} className="font-bold text-xs">
+                          PAY IN FULL
+                        </Text>
+                      </Pressable>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {/* Available Loans */}
+              <View className="mb-4">
+                <Text className="text-xs font-bold text-muted-foreground mb-2">APPLY FOR LOAN</Text>
+                
+                {[
+                  { id: 'payday', title: 'Payday Loan', amount: 2000, interest: 0.01, minScore: 0 },
+                  { id: 'personal', title: 'Personal Loan', amount: 15000, interest: 0.002, minScore: 500 },
+                  { id: 'business', title: 'Business Loan', amount: 100000, interest: 0.001, minScore: 650 },
+                ].map(offer => {
+                  const eligible = state.creditScore >= offer.minScore;
+                  return (
+                    <View key={offer.id} className="p-4 mb-2" style={{ borderWidth: 1, borderColor: eligible ? '#333' : '#111', backgroundColor: eligible ? '#0D0D0D' : '#050505' }}>
+                      <View className="flex-row justify-between mb-2">
+                        <Text className="font-bold" style={{ color: eligible ? '#eee' : '#555' }}>{offer.title}</Text>
+                        <Text className="text-xs" style={{ color: eligible ? '#FFB81C' : '#555' }}>Score: {offer.minScore}+</Text>
+                      </View>
+                      <Text className="text-xs mb-3" style={{ color: eligible ? '#aaa' : '#444' }}>
+                        Borrow {formatMoney(offer.amount)} at {(offer.interest * 100).toFixed(1)}% daily interest.
+                      </Text>
+                      <Pressable
+                        onPress={() => {
+                          if (!eligible) {
+                            showFeedback('⚠️ Credit score too low.');
+                            return;
+                          }
+                          dispatch({ type: 'TAKE_LOAN', payload: { id: `${offer.id}_${Date.now()}`, amount: offer.amount, dailyInterest: offer.interest } });
+                          showFeedback(`✅ ${offer.title} approved! Funds in bank.`);
+                        }}
+                        className="py-2 items-center"
+                        style={{ backgroundColor: eligible ? '#1A1400' : '#111', borderWidth: 1, borderColor: eligible ? '#D4AF37' : '#222' }}
+                      >
+                        <Text style={{ color: eligible ? '#D4AF37' : '#444' }} className="font-bold text-xs">
+                          {eligible ? 'APPLY' : 'INELIGIBLE'}
+                        </Text>
+                      </Pressable>
+                    </View>
+                  );
+                })}
+              </View>
             </>
           )}
         </View>

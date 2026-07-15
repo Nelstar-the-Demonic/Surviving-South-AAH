@@ -31,6 +31,8 @@ export interface PlayerStats {
   discipline: number;   // 0–100 (improves with exercise)
   endurance: number;    // 0–100 (improves with exercise)
   drugEffectDaysLeft: number; // days remaining for active drug effect
+  sickness: 'Cold' | 'Flu' | 'Food Poisoning' | null;
+  addictions: string[];
 }
 
 // ─── Background / Location ────────────────────────────────────────────────────
@@ -265,6 +267,7 @@ export interface Property {
   comfortBonus: number;
   isRentedOut: boolean;     // player is renting it out to a tenant
   tenantRent: number;       // monthly income from tenant
+  furniture: string[];      // list of purchased furniture items
 }
 
 // ─── Vehicles ─────────────────────────────────────────────────────────────────
@@ -310,6 +313,8 @@ export interface BankAccount {
   noticeLockUntilDay: number | null;
   interestRate: number; // monthly
   lastInterestDay: number;
+  creditScore: number;
+  loans: { id: string; amount: number; remaining: number; dailyInterest: number; paymentsMissed: number }[];
 }
 
 // ─── Relationships ────────────────────────────────────────────────────────────
@@ -333,6 +338,7 @@ export interface NPC {
   isPermanent: boolean;         // true = mother, brother, neighbour, child — cannot be removed
   daysUntilReencounter?: number; // cooldown days before a rejected NPC can reappear
   hasFlirted?: boolean;         // player has flirted with this NPC — enables romance progression
+  isEnemy?: boolean;            // true if trust < 0 or conflict > 50
 }
 
 // ─── Events ───────────────────────────────────────────────────────────────────
@@ -367,6 +373,8 @@ export interface EventChoice {
     injured: boolean;
     inventoryAdd: InventoryItem[];
     inventoryRemove: { id: string; quantity: number }[];
+    enrollJob: string;
+    changeLocation: Location;
   }>;
   // NPC meet event extras (set by engine, consumed by context reducer)
   npcData?: { id: string; name: string; role: string; age: number; background: string; canOffer: string[] };
@@ -423,6 +431,7 @@ export interface CrimeState {
   cannabisSalesCaught: number; // times caught selling cannabis
   totalCrimes: number;
   crimeRecords: CrimeRecord[];
+  wantedLevel: number; // 0-100, decays over time, increases encounter chance
 }
 
 // ─── Analytics ───────────────────────────────────────────────────────────────
@@ -502,6 +511,7 @@ export interface GameState {
   formalEmployment: FormalEmployment | null;
   experience: number;
   industryExperience: IndustryExperience;
+  perks: string[]; // Unlocked passive skills
 
   // Stats
   stats: PlayerStats;
@@ -539,6 +549,9 @@ export interface GameState {
   // Relationships
   npcs: NPC[];
   daysUntilNextNpcEncounter: number; // days until player can meet a new NPC via events
+
+  // Weather & Environment
+  weather: 'Sunny' | 'Rain' | 'Heatwave' | 'Storm';
 
   // Events
   pendingEvents: GameEvent[];
