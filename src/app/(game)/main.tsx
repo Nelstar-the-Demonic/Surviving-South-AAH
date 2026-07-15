@@ -2,64 +2,129 @@ import { useEffect, useState } from 'react';
 import { View, Text, ScrollView, Pressable, Modal } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useGame } from '@/store/gameContext';
-import { StatBar } from '@/components/game/StatBar';
-import { InfoCard } from '@/components/game/InfoCard';
-import { GameButton } from '@/components/game/GameButton';
 import { DaySummaryModal } from '@/components/game/DaySummaryModal';
 import { formatMoney, getLocationIcon, getDayName } from '@/lib/game/gameEngine';
 import { AD_REWARD_DEFS, canClaimAdReward } from '@/lib/game/adRewards';
 import type { AdRewardType } from '@/types/game';
 import { StatusBar } from 'expo-status-bar';
 
+// ── Design tokens ───────────────────────────────────────────────
+const C = {
+  bg:         '#0A0A0F',
+  surface:    '#13131A',
+  surfaceAlt: '#1A1A26',
+  border:     '#2A2A3A',
+  gold:       '#F5C842',
+  goldDim:    '#C9A227',
+  green:      '#4ADE80',
+  red:        '#F87171',
+  orange:     '#FB923C',
+  blue:       '#60A5FA',
+  textPrimary:'#F1F0FF',
+  textSub:    '#9B9BB8',
+  textMuted:  '#5A5A72',
+};
+
 const MENU_ITEMS = [
-  { id: 1,  label: 'Daily Actions', icon: '⚡', route: '/(game)/daily-actions', desc: 'Work, exercise, study, rest' },
-  { id: 2,  label: 'Education',     icon: '🎓', route: '/(game)/education',     desc: 'Study & qualifications' },
-  { id: 3,  label: 'Employment',    icon: '💼', route: '/(game)/employment',    desc: 'Jobs & hustles' },
-  { id: 4,  label: 'Business',      icon: '🏪', route: '/(game)/business',      desc: 'Manage your businesses' },
-  { id: 5,  label: 'Farming',       icon: '🌾', route: '/(game)/farming',       desc: 'Crops, livestock & produce' },
-  { id: 6,  label: 'Crime',         icon: '🔪', route: '/(game)/crime',         desc: 'High risk, high reward' },
-  { id: 7,  label: 'Property',      icon: '🏠', route: '/(game)/property',      desc: 'Rent or buy property' },
-  { id: 8,  label: 'Vehicles',      icon: '🚗', route: '/(game)/vehicles',      desc: 'Transport & licences' },
-  { id: 9,  label: 'Shop',          icon: '🛒', route: '/(game)/shop',          desc: 'Buy food, hygiene & more' },
-  { id: 10, label: 'Inventory',     icon: '🎒', route: '/(game)/inventory',     desc: 'Your items & documents' },
-  { id: 11, label: 'Bank',          icon: '🏦', route: '/(game)/bank',              desc: 'Deposits, savings & interest' },
-  { id: 12, label: 'Finances',      icon: '💹', route: '/(game)/financial-overview', desc: 'Income & expense breakdown' },
-  { id: 13, label: 'Government',    icon: '🏛️', route: '/(game)/government',         desc: 'SASSA, licences, SAPS' },
-  { id: 14, label: 'Relationships', icon: '🤝', route: '/(game)/relationships',      desc: 'Family, friends & partner' },
-  { id: 15, label: 'Hospital',      icon: '🏥', route: '/(game)/hospital',           desc: 'Medical care & health services' },
-  { id: 16, label: 'Travel',        icon: '✈️', route: '/(game)/travel',             desc: 'Move between cities & locations' },
-  { id: 17, label: 'Stats',         icon: '📊', route: '/(game)/stats-info',         desc: 'Full character stats & profile' },
-  { id: 18, label: 'Profile',       icon: '👤', route: '/(game)/profile',            desc: 'Your character profile' },
-  { id: 19, label: 'Save Game',     icon: '💾', route: '/(game)/save-game',          desc: 'Save your progress' },
-  { id: 20, label: 'Settings',      icon: '⚙️', route: '/(game)/settings',           desc: 'Game settings' },
+  { id: 1,  label: 'Daily',       icon: '⚡', route: '/(game)/daily-actions',      desc: 'Work & rest' },
+  { id: 2,  label: 'Education',   icon: '🎓', route: '/(game)/education',           desc: 'Study & certs' },
+  { id: 3,  label: 'Employment',  icon: '💼', route: '/(game)/employment',          desc: 'Jobs & hustles' },
+  { id: 4,  label: 'Business',    icon: '🏪', route: '/(game)/business',            desc: 'Your ventures' },
+  { id: 5,  label: 'Farming',     icon: '🌾', route: '/(game)/farming',             desc: 'Crops & livestock' },
+  { id: 6,  label: 'Crime',       icon: '🔪', route: '/(game)/crime',               desc: 'High risk' },
+  { id: 7,  label: 'Property',    icon: '🏠', route: '/(game)/property',            desc: 'Rent & buy' },
+  { id: 8,  label: 'Vehicles',    icon: '🚗', route: '/(game)/vehicles',            desc: 'Transport' },
+  { id: 9,  label: 'Shop',        icon: '🛒', route: '/(game)/shop',                desc: 'Food & goods' },
+  { id: 10, label: 'Inventory',   icon: '🎒', route: '/(game)/inventory',           desc: 'Items & docs' },
+  { id: 11, label: 'Bank',        icon: '🏦', route: '/(game)/bank',                desc: 'Savings' },
+  { id: 12, label: 'Finances',    icon: '💹', route: '/(game)/financial-overview',  desc: 'Income overview' },
+  { id: 13, label: 'Government',  icon: '🏛️', route: '/(game)/government',          desc: 'SASSA & SAPS' },
+  { id: 14, label: 'People',      icon: '🤝', route: '/(game)/relationships',       desc: 'Family & friends' },
+  { id: 15, label: 'Hospital',    icon: '🏥', route: '/(game)/hospital',            desc: 'Medical care' },
+  { id: 16, label: 'Travel',      icon: '✈️', route: '/(game)/travel',              desc: 'Move cities' },
+  { id: 17, label: 'Stats',       icon: '📊', route: '/(game)/stats-info',          desc: 'Character stats' },
+  { id: 18, label: 'Profile',     icon: '👤', route: '/(game)/profile',             desc: 'Your character' },
+  { id: 19, label: 'Save',        icon: '💾', route: '/(game)/save-game',           desc: 'Save progress' },
+  { id: 20, label: 'Settings',    icon: '⚙️', route: '/(game)/settings',            desc: 'Game settings' },
 ];
+
+function StatPill({ icon, value, label }: { icon: string; value: number; label: string }) {
+  const color = value >= 70 ? C.green : value >= 35 ? C.gold : C.red;
+  return (
+    <View style={{ flex: 1, alignItems: 'center' }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginBottom: 3 }}>
+        <Text style={{ fontSize: 11 }}>{icon}</Text>
+        <Text style={{ color: C.textSub, fontSize: 10, fontWeight: '600' }}>{label}</Text>
+        <Text style={{ color, fontSize: 11, fontWeight: '800' }}>{value}</Text>
+      </View>
+      <View style={{ width: '100%', height: 5, backgroundColor: C.surface, borderRadius: 3, overflow: 'hidden' }}>
+        <View style={{ width: `${value}%`, height: 5, backgroundColor: color, borderRadius: 3 }} />
+      </View>
+    </View>
+  );
+}
+
+function MenuTile({ item, isLocked, isPrison, onPress }: {
+  item: typeof MENU_ITEMS[0];
+  isLocked: boolean;
+  isPrison: boolean;
+  onPress: () => void;
+}) {
+  const isCrime = item.label === 'Crime';
+  const accentColor = isPrison ? C.red : isCrime ? '#FF6B6B' : C.gold;
+  const bgColor = isPrison ? '#1A0808' : isCrime ? '#150808' : isLocked ? '#0D0D12' : C.surface;
+
+  return (
+    <Pressable
+      onPress={onPress}
+      style={{
+        width: '48%',
+        backgroundColor: bgColor,
+        borderWidth: 1,
+        borderColor: isPrison ? C.red : isCrime ? '#3A1515' : isLocked ? C.border : '#252535',
+        borderTopWidth: isPrison || isCrime ? 2 : 1,
+        borderTopColor: isPrison ? C.red : isCrime ? '#FF6B6B' : isLocked ? C.border : '#252535',
+        borderRadius: 10,
+        padding: 14,
+        marginBottom: 10,
+        opacity: isLocked ? 0.35 : 1,
+      }}
+    >
+      <Text style={{ fontSize: 28, marginBottom: 6 }}>{isLocked ? '🔒' : item.icon}</Text>
+      <Text style={{
+        color: isPrison ? C.red : isCrime ? '#FF9999' : isLocked ? C.textMuted : C.textPrimary,
+        fontSize: 13,
+        fontWeight: '700',
+        marginBottom: 2,
+      }}>
+        {item.label}
+      </Text>
+      <Text style={{ color: isLocked ? C.textMuted : C.textSub, fontSize: 10, lineHeight: 14 }}>
+        {isLocked ? 'Imprisoned' : item.desc}
+      </Text>
+    </Pressable>
+  );
+}
 
 export default function MainGame() {
   const router = useRouter();
   const { state, dispatch } = useGame();
+  const [showEventModal, setShowEventModal] = useState(false);
 
   useEffect(() => {
-    if (!state?.gameStarted) {
-      router.replace('/');
-    }
+    if (!state?.gameStarted) router.replace('/');
   }, []);
-
-  const [showEventModal, setShowEventModal] = useState(false);
 
   if (!state?.gameStarted) return null;
 
   const { stats, playerName, location, day, cash, bank, prison, injury, currentCourse, pendingEvents, businesses, actionsUsedToday, maxActionsPerDay } = state;
-
   const hasPendingEvent = pendingEvents.length > 0;
   const activeEvent = hasPendingEvent ? pendingEvents[0] : null;
   const actionsLeft = Math.max(0, maxActionsPerDay - actionsUsedToday.length);
 
   function claimAdReward(type: AdRewardType) {
-    if (type === 'extra_action') {
-      dispatch({ type: 'GRANT_BONUS_ACTION' });
-    } else {
-      dispatch({ type: 'CLAIM_AD_REWARD', payload: type });
-    }
+    if (type === 'extra_action') dispatch({ type: 'GRANT_BONUS_ACTION' });
+    else dispatch({ type: 'CLAIM_AD_REWARD', payload: type });
   }
 
   function handleAdvanceDay() {
@@ -67,384 +132,288 @@ export default function MainGame() {
   }
 
   function handleMenuPress(route: string, id: number) {
-    // If imprisoned, only allow Prison and Save Game screens
     if (prison.imprisoned) {
-      const allowedWhileImprisoned = ['/(game)/prison', '/(game)/save-game', '/(game)/settings'];
-      if (!allowedWhileImprisoned.includes(route)) {
-        router.push('/(game)/prison');
-        return;
-      }
-      router.push(route as any);
-      return;
-    }
-    // Farming only accessible with farm
-    if (id === 5) {
-      const hasFarm = state.properties.some(p => p.type === 'Farm') || state.location === 'Farm';
-      if (!hasFarm) {
-        router.push('/(game)/farming');
-        return;
-      }
+      const allowed = ['/(game)/prison', '/(game)/save-game', '/(game)/settings'];
+      if (!allowed.includes(route)) { router.push('/(game)/prison'); return; }
+      router.push(route as any); return;
     }
     router.push(route as any);
   }
 
   return (
-    <View className="flex-1 bg-background">
+    <View style={{ flex: 1, backgroundColor: C.bg }}>
       <StatusBar style="light" />
       <DaySummaryModal />
 
-      {/* Top HUD Bar */}
-      <View
-        className="bg-card px-4 pt-12 pb-3"
-        style={{ borderBottomWidth: 2, borderBottomColor: '#FFB81C' }}
-      >
-        <View className="flex-row justify-between items-start mb-2">
+      {/* ── TOP HUD ── */}
+      <View style={{
+        backgroundColor: C.surface,
+        paddingTop: 48, paddingHorizontal: 16, paddingBottom: 14,
+        borderBottomWidth: 1, borderBottomColor: C.border,
+      }}>
+        {/* Player row */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
           <View>
-            <Text className="text-foreground text-lg font-bold">{playerName}</Text>
-            <Text className="text-muted-foreground text-xs">
-              {getLocationIcon(location)} {location}  ·  Day {day} ({getDayName(day)})
+            <Text style={{ color: C.textPrimary, fontSize: 18, fontWeight: '800', letterSpacing: 0.3 }}>
+              {playerName}
+            </Text>
+            <Text style={{ color: C.textSub, fontSize: 11, marginTop: 1 }}>
+              {getLocationIcon(location)} {location} · Day {day} — {getDayName(day)}
             </Text>
           </View>
-          <View className="items-end">
-            <Text style={{ color: '#4CAF50' }} className="text-xl font-bold">
+          <View style={{ alignItems: 'flex-end' }}>
+            <Text style={{ color: C.green, fontSize: 20, fontWeight: '800' }}>
               {formatMoney(cash)}
             </Text>
             {bank.currentBalance > 0 && (
-              <Text className="text-muted-foreground text-xs">
-                Bank: {formatMoney(bank.currentBalance)}
+              <Text style={{ color: C.textSub, fontSize: 11, marginTop: 2 }}>
+                🏦 {formatMoney(bank.currentBalance)}
               </Text>
             )}
           </View>
         </View>
 
-        {/* Critical Stats Row */}
-        <View className="flex-row gap-3">
-          {[
-            { label: 'Health', val: stats.health, icon: '❤️' },
-            { label: 'Hunger', val: stats.hunger, icon: '🍽️' },
-            { label: 'Energy', val: stats.energy, icon: '⚡' },
-            { label: 'Happiness', val: stats.happiness, icon: '😊' },
-          ].map(({ label, val, icon }) => (
-            <View key={label} className="flex-1">
-              <View className="flex-row justify-between mb-0.5">
-                <Text className="text-xs">{icon}</Text>
-                <Text
-                  className="text-xs font-bold"
-                  style={{ color: val >= 70 ? '#4CAF50' : val >= 35 ? '#FFB81C' : '#E32636' }}
-                >{val}</Text>
-              </View>
-              <View className="h-1.5 bg-secondary">
-                <View
-                  className="h-1.5"
-                  style={{
-                    width: `${val}%`,
-                    backgroundColor: val >= 70 ? '#4CAF50' : val >= 35 ? '#FFB81C' : '#E32636',
-                  }}
-                />
-              </View>
-            </View>
-          ))}
+        {/* Stat bars row */}
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <StatPill icon="❤️" label="HP" value={stats.health} />
+          <StatPill icon="🍽️" label="Food" value={stats.hunger} />
+          <StatPill icon="⚡" label="NRG" value={stats.energy} />
+          <StatPill icon="😊" label="Joy" value={stats.happiness} />
         </View>
       </View>
 
-      <ScrollView contentInsetAdjustmentBehavior="automatic">
-        <View className="px-4 pt-4 pb-6">
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 14 }}>
 
-          {/* Prison Banner */}
-          {prison.imprisoned && (
-            <Pressable
-              onPress={() => router.push('/(game)/prison')}
-              className="mb-4 p-4"
-              style={{ backgroundColor: '#1A0000', borderWidth: 2, borderColor: '#E32636' }}
-            >
-              <Text className="text-sm font-bold mb-1" style={{ color: '#E32636' }}>
-                🔒 YOU ARE IMPRISONED — {prison.crime}
-              </Text>
-              <Text className="text-muted-foreground text-xs mb-2">
-                Days served: {prison.daysServed} / {prison.sentenceDays} · {Math.max(0, prison.sentenceDays - prison.daysServed)} days remaining
-              </Text>
-              <View className="py-2 items-center" style={{ backgroundColor: '#E32636' }}>
-                <Text className="font-bold text-sm" style={{ color: '#fff' }}>
-                  ⛏️ GO TO PRISON SCREEN → ADVANCE DAY
-                </Text>
-              </View>
-              <Text className="text-xs text-center mt-2" style={{ color: '#555' }}>
-                🔒 Menu locked — only Prison, Save Game &amp; Settings available
-              </Text>
-            </Pressable>
-          )}
-
-          {/* Injury Banner */}
-          {injury.injured && (
-            <View
-              className="mb-4 p-4"
-              style={{ backgroundColor: '#1A0500', borderWidth: 1, borderColor: '#FF6B35' }}
-            >
-              <Text className="text-sm font-bold mb-1" style={{ color: '#FF6B35' }}>
-                🏥 RECOVERING FROM INJURY
-              </Text>
-              <Text className="text-muted-foreground text-xs">
-                {injury.description}  ·  {injury.daysHealing} days healing remaining
-              </Text>
+        {/* ── PRISON BANNER ── */}
+        {prison.imprisoned && (
+          <Pressable
+            onPress={() => router.push('/(game)/prison')}
+            style={{ marginBottom: 12, padding: 14, backgroundColor: '#1A0808', borderWidth: 2, borderColor: C.red, borderRadius: 8 }}
+          >
+            <Text style={{ color: C.red, fontWeight: '800', fontSize: 14, marginBottom: 4 }}>
+              🔒 IMPRISONED — {prison.crime}
+            </Text>
+            <Text style={{ color: C.textSub, fontSize: 12, marginBottom: 10 }}>
+              {prison.daysServed} / {prison.sentenceDays} days served · {Math.max(0, prison.sentenceDays - prison.daysServed)} remaining
+            </Text>
+            <View style={{ backgroundColor: C.red, padding: 10, borderRadius: 5, alignItems: 'center' }}>
+              <Text style={{ color: '#fff', fontWeight: '800', fontSize: 13 }}>⛏️ GO TO PRISON → ADVANCE DAY</Text>
             </View>
-          )}
+          </Pressable>
+        )}
 
-          {/* Pending Events Banner + inline modal */}
-          {hasPendingEvent && (
-            <Pressable
-              onPress={() => setShowEventModal(true)}
-              className="mb-4 p-4"
-              style={{ backgroundColor: '#0D0A00', borderWidth: 2, borderColor: '#FFB81C' }}
-            >
-              <View className="flex-row items-center justify-between">
-                <View>
-                  <Text style={{ color: '#FFB81C' }} className="text-sm font-bold">
-                    📢 {pendingEvents.length} EVENT{pendingEvents.length > 1 ? 'S' : ''} PENDING
+        {/* ── INJURY BANNER ── */}
+        {injury.injured && (
+          <View style={{ marginBottom: 12, padding: 12, backgroundColor: '#1A0D08', borderWidth: 1, borderColor: C.orange, borderRadius: 8 }}>
+            <Text style={{ color: C.orange, fontWeight: '700', fontSize: 13, marginBottom: 2 }}>🏥 RECOVERING FROM INJURY</Text>
+            <Text style={{ color: C.textSub, fontSize: 12 }}>{injury.description} · {injury.daysHealing} days healing</Text>
+          </View>
+        )}
+
+        {/* ── PENDING EVENT BANNER ── */}
+        {hasPendingEvent && (
+          <Pressable
+            onPress={() => setShowEventModal(true)}
+            style={{ marginBottom: 12, padding: 14, backgroundColor: '#15120A', borderWidth: 2, borderColor: C.gold, borderRadius: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
+          >
+            <View>
+              <Text style={{ color: C.gold, fontWeight: '800', fontSize: 13 }}>
+                📢 {pendingEvents.length} EVENT{pendingEvents.length > 1 ? 'S' : ''} PENDING
+              </Text>
+              <Text style={{ color: C.textSub, fontSize: 11, marginTop: 2 }}>{activeEvent?.title ?? 'Tap to respond'}</Text>
+            </View>
+            <Text style={{ color: C.gold, fontSize: 22 }}>›</Text>
+          </Pressable>
+        )}
+
+        {/* ── EVENT MODAL ── */}
+        <Modal visible={showEventModal && hasPendingEvent} transparent animationType="fade" onRequestClose={() => setShowEventModal(false)}>
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.85)' }}>
+            <View style={{ margin: 16, padding: 20, width: '90%', backgroundColor: C.surface, borderWidth: 2, borderColor: C.gold, borderRadius: 12 }}>
+              {activeEvent && (<>
+                <Text style={{ color: C.gold, fontSize: 11, fontWeight: '700', letterSpacing: 1.2, marginBottom: 4 }}>
+                  📢 {activeEvent.type.toUpperCase()}
+                </Text>
+                <Text style={{ color: C.textPrimary, fontWeight: '800', fontSize: 17, marginBottom: 8 }}>{activeEvent.title}</Text>
+                <Text style={{ color: C.textSub, fontSize: 13, lineHeight: 20, marginBottom: 16 }}>{activeEvent.description}</Text>
+                {activeEvent.choices.length > 0 ? (
+                  activeEvent.choices.map((choice, i) => (
+                    <Pressable
+                      key={i}
+                      onPress={() => {
+                        dispatch({ type: 'RESOLVE_EVENT', payload: { eventId: activeEvent.id, choiceIndex: i } });
+                        if (pendingEvents.length <= 1) setShowEventModal(false);
+                      }}
+                      style={{ marginBottom: 8, padding: 12, borderWidth: 1, borderColor: C.gold, backgroundColor: '#15120A', borderRadius: 8 }}
+                    >
+                      <Text style={{ color: C.textPrimary, fontWeight: '700', fontSize: 13 }}>{choice.label}</Text>
+                      {choice.outcome ? <Text style={{ color: C.textSub, fontSize: 11, marginTop: 3 }}>{choice.outcome}</Text> : null}
+                    </Pressable>
+                  ))
+                ) : (
+                  <Pressable
+                    onPress={() => {
+                      dispatch({ type: 'DISMISS_EVENT', payload: activeEvent.id });
+                      if (pendingEvents.length <= 1) setShowEventModal(false);
+                    }}
+                    style={{ padding: 12, alignItems: 'center', backgroundColor: C.gold, borderRadius: 8 }}
+                  >
+                    <Text style={{ color: C.bg, fontWeight: '800', fontSize: 14 }}>ACKNOWLEDGE</Text>
+                  </Pressable>
+                )}
+                {pendingEvents.length > 1 && (
+                  <Text style={{ color: C.textMuted, fontSize: 11, textAlign: 'center', marginTop: 12 }}>
+                    {pendingEvents.length - 1} more event{pendingEvents.length - 1 > 1 ? 's' : ''} pending
                   </Text>
-                  <Text className="text-muted-foreground text-xs mt-1">
-                    {activeEvent?.title ?? 'Tap to view and respond'}
+                )}
+              </>)}
+              <Pressable onPress={() => setShowEventModal(false)} style={{ marginTop: 12, padding: 10, alignItems: 'center', borderWidth: 1, borderColor: C.border, borderRadius: 6 }}>
+                <Text style={{ color: C.textSub, fontSize: 12 }}>Close</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
+
+        {/* ── DAILY ACTIONS CARD ── */}
+        <View style={{ backgroundColor: C.surface, borderWidth: 1, borderColor: C.gold, borderTopWidth: 3, borderTopColor: C.gold, borderRadius: 10, padding: 14, marginBottom: 12 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <Text style={{ color: C.textPrimary, fontWeight: '800', fontSize: 14 }}>⚡ Daily Actions</Text>
+            <Text style={{ color: actionsLeft === 0 ? C.red : C.gold, fontSize: 13, fontWeight: '700' }}>
+              {actionsLeft}/{maxActionsPerDay} left
+            </Text>
+          </View>
+
+          {/* Action pips */}
+          <View style={{ flexDirection: 'row', gap: 6, marginBottom: 10 }}>
+            {Array.from({ length: maxActionsPerDay }).map((_, i) => {
+              const used = i < (maxActionsPerDay - actionsLeft);
+              return (
+                <View key={i} style={{ flex: 1, height: 8, borderRadius: 4, backgroundColor: used ? C.gold : C.border }} />
+              );
+            })}
+          </View>
+
+          {/* Action badges */}
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+            {['work', 'exercise', 'study', 'socialize', 'shower'].map(a => {
+              const done = actionsUsedToday.includes(a);
+              return (
+                <View key={a} style={{
+                  paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20,
+                  backgroundColor: done ? '#1C1800' : C.surfaceAlt,
+                  borderWidth: 1, borderColor: done ? C.goldDim : C.border,
+                }}>
+                  <Text style={{ color: done ? C.gold : C.textMuted, fontSize: 11, fontWeight: done ? '700' : '400', textTransform: 'capitalize' }}>
+                    {done ? '✓ ' : ''}{a}
                   </Text>
                 </View>
-                <Text style={{ color: '#FFB81C' }} className="text-xl">→</Text>
-              </View>
-            </Pressable>
+              );
+            })}
+          </View>
+
+          {actionsLeft === 0 && (
+            <Text style={{ color: C.red, fontSize: 11, marginTop: 8, fontWeight: '600' }}>
+              ⛔ No actions left — advance the day to continue
+            </Text>
           )}
 
-          {/* Event modal overlay */}
-          <Modal
-            visible={showEventModal && hasPendingEvent}
-            transparent
-            animationType="fade"
-            onRequestClose={() => setShowEventModal(false)}
-          >
-            <View className="flex-1 justify-center items-center" style={{ backgroundColor: 'rgba(0,0,0,0.82)' }}>
-              <View className="mx-4 p-5 w-full max-w-sm" style={{ backgroundColor: '#0D0D0D', borderWidth: 2, borderColor: '#FFB81C' }}>
-                {activeEvent && (
-                  <>
-                    <Text style={{ color: '#FFB81C' }} className="text-xs tracking-wider mb-1">📢 {activeEvent.type.toUpperCase()}</Text>
-                    <Text className="text-foreground font-bold text-lg mb-3">{activeEvent.title}</Text>
-                    <Text className="text-muted-foreground text-sm mb-4 leading-5">{activeEvent.description}</Text>
-                    {activeEvent.choices.length > 0 ? (
-                      activeEvent.choices.map((choice, i) => (
-                        <Pressable
-                          key={i}
-                          onPress={() => {
-                            dispatch({ type: 'RESOLVE_EVENT', payload: { eventId: activeEvent.id, choiceIndex: i } });
-                            if (pendingEvents.length <= 1) setShowEventModal(false);
-                          }}
-                          className="mb-2 p-3"
-                          style={{ borderWidth: 1, borderColor: '#FFB81C', backgroundColor: '#0D0A00' }}
-                        >
-                          <Text className="text-foreground font-bold text-sm">{choice.label}</Text>
-                          {choice.outcome ? <Text className="text-muted-foreground text-xs mt-1">{choice.outcome}</Text> : null}
-                        </Pressable>
-                      ))
-                    ) : (
-                      <Pressable
-                        onPress={() => {
-                          dispatch({ type: 'DISMISS_EVENT', payload: activeEvent.id });
-                          if (pendingEvents.length <= 1) setShowEventModal(false);
-                        }}
-                        className="p-3 items-center"
-                        style={{ backgroundColor: '#FFB81C' }}
-                      >
-                        <Text className="font-bold text-sm" style={{ color: '#0D0D0D' }}>ACKNOWLEDGE</Text>
-                      </Pressable>
-                    )}
-                    {pendingEvents.length > 1 && (
-                      <Text className="text-muted-foreground text-xs text-center mt-3">
-                        {pendingEvents.length - 1} more event{pendingEvents.length - 1 > 1 ? 's' : ''} pending
-                      </Text>
-                    )}
-                  </>
-                )}
-                <Pressable onPress={() => setShowEventModal(false)} className="mt-3 py-2 items-center" style={{ borderWidth: 1, borderColor: '#333' }}>
-                  <Text className="text-muted-foreground text-xs">Close — view all in Events tab</Text>
-                </Pressable>
+          {/* Course progress */}
+          {currentCourse && (
+            <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: C.border }}>
+              <Text style={{ color: C.textSub, fontSize: 11, marginBottom: 3 }}>📚 STUDYING</Text>
+              <Text style={{ color: C.textPrimary, fontSize: 13, fontWeight: '700' }}>{currentCourse.courseName}</Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+                <Text style={{ color: C.textSub, fontSize: 11 }}>Day {currentCourse.daysCompleted}/{currentCourse.totalDays}</Text>
+                <Text style={{ color: C.textSub, fontSize: 11 }}>{Math.round((currentCourse.studyPointsEarned / currentCourse.studyPointsRequired) * 100)}%</Text>
+              </View>
+              <View style={{ height: 5, backgroundColor: C.border, borderRadius: 3, marginTop: 4, overflow: 'hidden' }}>
+                <View style={{ height: 5, borderRadius: 3, width: `${Math.min(100, Math.round((currentCourse.studyPointsEarned / currentCourse.studyPointsRequired) * 100))}%`, backgroundColor: C.blue }} />
               </View>
             </View>
-          </Modal>
+          )}
 
-          {/* Daily Status */}
-          <InfoCard accent>
-            {/* ── Action counter ── */}
-            <View className="flex-row justify-between items-center mb-2">
-              <Text className="text-foreground font-bold">Daily Actions</Text>
-              <View style={{ flexDirection: 'row', gap: 6 }}>
-                {Array.from({ length: maxActionsPerDay }).map((_, i) => (
-                  <View
-                    key={i}
-                    style={{
-                      width: 22, height: 22, borderRadius: 4, justifyContent: 'center', alignItems: 'center',
-                      backgroundColor: i < (maxActionsPerDay - actionsLeft) ? '#FFB81C' : '#222',
-                      borderWidth: 1,
-                      borderColor: i < (maxActionsPerDay - actionsLeft) ? '#D4AF37' : '#444',
-                    }}
-                  >
-                    <Text style={{ fontSize: 10, color: i < (maxActionsPerDay - actionsLeft) ? '#000' : '#555' }}>
-                      {i < (maxActionsPerDay - actionsLeft) ? '✓' : '○'}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-            <Text style={{ color: actionsLeft === 0 ? '#E32636' : '#888', fontSize: 12, marginBottom: 8 }}>
-              {actionsLeft === 0
-                ? '⛔ No actions remaining — advance the day to continue.'
-                : `${actionsLeft}/${maxActionsPerDay} actions remaining today`}
-            </Text>
-
-            {/* ── Used actions ── */}
-            <View className="flex-row flex-wrap gap-2">
-              {['work', 'exercise', 'study', 'socialize', 'shower'].map(a => (
-                <View
-                  key={a}
-                  className="px-2 py-1"
-                  style={{
-                    backgroundColor: actionsUsedToday.includes(a) ? '#1A1400' : '#111',
-                    borderWidth: 1,
-                    borderColor: actionsUsedToday.includes(a) ? '#FFB81C' : '#333',
-                  }}
-                >
-                  <Text
-                    className="text-xs capitalize"
-                    style={{ color: actionsUsedToday.includes(a) ? '#FFB81C' : '#666' }}
-                  >
-                    {actionsUsedToday.includes(a) ? '✓ ' : ''}{a}
-                  </Text>
+          {/* Businesses */}
+          {businesses.length > 0 && (
+            <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: C.border }}>
+              <Text style={{ color: C.textSub, fontSize: 11, marginBottom: 4 }}>🏪 BUSINESSES</Text>
+              {businesses.slice(0, 2).map(b => (
+                <View key={b.id} style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 2 }}>
+                  <Text style={{ color: C.textSub, fontSize: 12 }}>{b.name}</Text>
+                  <Text style={{ color: C.green, fontSize: 12, fontWeight: '700' }}>+{formatMoney(b.dailyIncome)}/day</Text>
                 </View>
               ))}
             </View>
+          )}
+        </View>
 
-            {currentCourse && (
-              <View className="mt-3 pt-3" style={{ borderTopWidth: 1, borderTopColor: '#222' }}>
-                <Text className="text-muted-foreground text-xs mb-1">📚 STUDYING</Text>
-                <Text className="text-foreground text-sm font-bold">{currentCourse.courseName}</Text>
-                <View className="flex-row justify-between mt-1">
-                  <Text className="text-muted-foreground text-xs">
-                    Day {currentCourse.daysCompleted}/{currentCourse.totalDays}
-                  </Text>
-                  <Text className="text-muted-foreground text-xs">
-                    Progress: {Math.round((currentCourse.studyPointsEarned / currentCourse.studyPointsRequired) * 100)}%
-                  </Text>
-                </View>
-                <View className="h-1.5 bg-secondary mt-1">
-                  <View
-                    className="h-1.5"
-                    style={{
-                      width: `${Math.min(100, Math.round((currentCourse.studyPointsEarned / currentCourse.studyPointsRequired) * 100))}%`,
-                      backgroundColor: '#4CAF50',
-                    }}
-                  />
-                </View>
-              </View>
-            )}
+        {/* ── END DAY BUTTON ── */}
+        <Pressable
+          onPress={handleAdvanceDay}
+          style={{
+            backgroundColor: C.gold, padding: 16, borderRadius: 10,
+            alignItems: 'center', marginBottom: 4,
+          }}
+        >
+          <Text style={{ color: C.bg, fontWeight: '900', fontSize: 15, letterSpacing: 0.5 }}>
+            END DAY {day} → START DAY {day + 1}
+          </Text>
+        </Pressable>
+        <Text style={{ color: C.textMuted, fontSize: 10, textAlign: 'center', marginBottom: 16 }}>
+          Applies stat changes, business income & random events
+        </Text>
 
-            {businesses.length > 0 && (
-              <View className="mt-3 pt-3" style={{ borderTopWidth: 1, borderTopColor: '#222' }}>
-                <Text className="text-muted-foreground text-xs mb-1">🏪 BUSINESSES RUNNING</Text>
-                {businesses.slice(0, 2).map(b => (
-                  <View key={b.id} className="flex-row justify-between">
-                    <Text className="text-foreground text-xs">{b.name}</Text>
-                    <Text style={{ color: '#4CAF50' }} className="text-xs font-bold">
-                      +{formatMoney(b.dailyIncome)}/day
-                    </Text>
+        {/* ── BONUS REWARDS ── */}
+        <View style={{ backgroundColor: C.surface, borderWidth: 1, borderColor: '#2A2014', borderRadius: 10, padding: 14, marginBottom: 16 }}>
+          <Text style={{ color: C.goldDim, fontSize: 12, fontWeight: '700', letterSpacing: 1, marginBottom: 10 }}>
+            📺 BONUS REWARDS
+          </Text>
+          <View style={{ gap: 8 }}>
+            {AD_REWARD_DEFS.map(def => {
+              const { canClaim, reason } = canClaimAdReward(state, def.type);
+              return (
+                <Pressable
+                  key={def.type}
+                  onPress={() => canClaim && claimAdReward(def.type)}
+                  disabled={!canClaim}
+                  style={{
+                    flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12,
+                    backgroundColor: canClaim ? '#15120A' : C.surfaceAlt,
+                    borderWidth: 1, borderColor: canClaim ? '#3A2800' : C.border,
+                    borderRadius: 8, opacity: canClaim ? 1 : 0.5,
+                  }}
+                >
+                  <Text style={{ fontSize: 22 }}>{def.icon}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: canClaim ? C.gold : C.textSub, fontSize: 13, fontWeight: '700' }}>{def.title}</Text>
+                    <Text style={{ color: C.textMuted, fontSize: 11, marginTop: 2 }}>{canClaim ? def.description : reason}</Text>
                   </View>
-                ))}
-              </View>
-            )}
-          </InfoCard>
-
-          {/* ── Rewarded Ads Panel ── */}
-          <View style={{ backgroundColor: '#0D0A00', borderWidth: 1, borderColor: '#2A1A00', padding: 14, borderRadius: 4 }}>
-            <Text style={{ color: '#D4AF37', fontSize: 12, fontWeight: '700', marginBottom: 10, letterSpacing: 1 }}>
-              📺 BONUS REWARDS (Watch Ad)
-            </Text>
-            <View style={{ gap: 8 }}>
-              {AD_REWARD_DEFS.map(def => {
-                const { canClaim, reason } = canClaimAdReward(state, def.type);
-                return (
-                  <Pressable
-                    key={def.type}
-                    onPress={() => canClaim && claimAdReward(def.type)}
-                    disabled={!canClaim}
-                    style={{
-                      flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10,
-                      backgroundColor: canClaim ? '#1A1000' : '#0A0A0A',
-                      borderWidth: 1, borderColor: canClaim ? '#3A2200' : '#1A1A1A',
-                      borderRadius: 4, opacity: canClaim ? 1 : 0.5,
-                    }}
-                  >
-                    <Text style={{ fontSize: 20 }}>{def.icon}</Text>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ color: canClaim ? '#FFB81C' : '#555', fontSize: 13, fontWeight: '700' }}>
-                        {def.title}
-                      </Text>
-                      <Text style={{ color: '#666', fontSize: 11, marginTop: 2 }}>
-                        {canClaim ? def.description : reason}
-                      </Text>
-                    </View>
-                    {canClaim && (
-                      <Text style={{ color: '#FFB81C', fontSize: 11, fontWeight: '700' }}>CLAIM ▶</Text>
-                    )}
-                  </Pressable>
-                );
-              })}
-            </View>
-            <Text style={{ color: '#444', fontSize: 10, marginTop: 8, textAlign: 'center' }}>
-              Ads are optional. Working, farming & business are always more profitable.
-            </Text>
+                  {canClaim && <Text style={{ color: C.gold, fontSize: 12, fontWeight: '800' }}>CLAIM ▶</Text>}
+                </Pressable>
+              );
+            })}
           </View>
+        </View>
 
-          {/* End Day Button */}
-          <View className="mb-6">
-            <GameButton
-              label={`END DAY ${day} → START DAY ${day + 1}`}
-              onPress={handleAdvanceDay}
-              variant="primary"
-              size="lg"
-            />
-            <Text className="text-muted-foreground text-xs text-center mt-2">
-              Advancing the day applies stat changes, business income & events
-            </Text>
-          </View>
-
-          {/* Main Menu Grid */}
-          <Text className="text-muted-foreground text-xs mb-3 tracking-wider">MAIN MENU</Text>
+        {/* ── MAIN MENU GRID (2 columns) ── */}
+        <Text style={{ color: C.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 1.5, marginBottom: 10 }}>MAIN MENU</Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
           {MENU_ITEMS.map((item) => {
             const allowedWhileImprisoned = ['/(game)/prison', '/(game)/save-game', '/(game)/settings'];
             const isLocked = prison.imprisoned && !allowedWhileImprisoned.includes(item.route);
-            const isPrisonItem = item.route === '/(game)/prison';
+            const isPrison = item.route === '/(game)/prison';
             return (
-              <Pressable
+              <MenuTile
                 key={item.id}
+                item={item}
+                isLocked={isLocked}
+                isPrison={isPrison}
                 onPress={() => handleMenuPress(item.route, item.id)}
-                className="mb-2 p-4 flex-row items-center"
-                style={{
-                  backgroundColor: isPrisonItem ? '#1A0000' : isLocked ? '#080808' : item.label === 'Crime' ? '#0D0000' : '#0D0D0D',
-                  borderWidth: 1,
-                  borderColor: isPrisonItem ? '#E32636' : isLocked ? '#111' : item.label === 'Crime' ? '#3A0000' : '#1E1E1E',
-                  borderLeftWidth: 3,
-                  borderLeftColor: isPrisonItem ? '#E32636' : isLocked ? '#1A1A1A' : item.label === 'Crime' ? '#E32636' : '#333',
-                  opacity: isLocked ? 0.35 : 1,
-                }}
-              >
-                <Text className="text-2xl mr-4">{isLocked ? '🔒' : item.icon}</Text>
-                <View className="flex-1">
-                  <Text className="font-bold text-sm" style={{
-                    color: isPrisonItem ? '#E32636' : isLocked ? '#444' : item.label === 'Crime' ? '#FF4444' : '#EAEAEA',
-                  }}>
-                    {item.id}. {item.label}
-                  </Text>
-                  <Text className="text-xs" style={{ color: isLocked ? '#333' : '#666' }}>
-                    {isLocked ? 'Unavailable while imprisoned' : item.desc}
-                  </Text>
-                </View>
-                <Text style={{ color: isLocked ? '#222' : '#555' }} className="text-lg">›</Text>
-              </Pressable>
+              />
             );
           })}
         </View>
+
+        <View style={{ height: 40 }} />
       </ScrollView>
     </View>
   );

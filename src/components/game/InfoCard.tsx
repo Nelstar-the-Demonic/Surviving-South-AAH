@@ -1,5 +1,12 @@
 import { View, Text, Pressable } from 'react-native';
 
+const C = {
+  surface: '#13131A',
+  gold:    '#F5C842',
+  border:  '#2A2A3A',
+  textPrimary: '#F1F0FF',
+};
+
 interface InfoCardProps {
   title?: string;
   children: React.ReactNode;
@@ -10,16 +17,19 @@ interface InfoCardProps {
 export function InfoCard({ title, children, accent = false, onPress }: InfoCardProps) {
   const content = (
     <View
-      className="bg-card p-4 mb-3"
       style={{
+        backgroundColor: C.surface,
+        padding: 14,
+        marginBottom: 12,
+        borderRadius: 10,
         borderWidth: 1,
-        borderColor: accent ? '#FFB81C' : '#222',
-        borderLeftWidth: accent ? 3 : 1,
-        borderLeftColor: accent ? '#FFB81C' : '#222',
+        borderColor: accent ? C.gold : C.border,
+        borderTopWidth: accent ? 3 : 1,
+        borderTopColor: accent ? C.gold : C.border,
       }}
     >
       {title ? (
-        <Text className="text-primary font-bold text-sm mb-2 tracking-wider uppercase">
+        <Text style={{ color: C.gold, fontWeight: '800', fontSize: 12, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 10 }}>
           {title}
         </Text>
       ) : null}

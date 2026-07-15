@@ -4,6 +4,19 @@ import { ChevronLeft } from 'lucide-react-native';
 import { useGame } from '@/store/gameContext';
 import { formatMoney } from '@/lib/game/gameEngine';
 
+const C = {
+  bg:         '#0A0A0F',
+  surface:    '#13131A',
+  border:     '#2A2A3A',
+  gold:       '#F5C842',
+  green:      '#4ADE80',
+  red:        '#F87171',
+  orange:     '#FB923C',
+  textPrimary:'#F1F0FF',
+  textSub:    '#9B9BB8',
+  textMuted:  '#5A5A72',
+};
+
 interface ExtraStat {
   label: string;
   value: string;
@@ -25,59 +38,55 @@ export function GameHeader({ title, subtitle, showBack = true, extraStats }: Gam
   const hunger = state?.stats?.hunger ?? 0;
   const hasPartner = state?.npcs?.some(n => n.romanticStage === 'partner') ?? false;
 
-  const energyColor = energy >= 50 ? '#4CAF50' : energy >= 25 ? '#FFB81C' : '#E32636';
-  const hungerColor = hunger >= 50 ? '#4CAF50' : hunger >= 25 ? '#FFB81C' : '#E32636';
+  const energyColor = energy >= 50 ? C.green : energy >= 25 ? C.gold : C.red;
+  const hungerColor = hunger >= 50 ? C.green : hunger >= 25 ? C.gold : C.red;
 
   return (
-    <View className="bg-card border-b border-border px-4 pt-12 pb-3">
-      {/* Row 1: Cash + Energy + Hunger */}
-      <View className="flex-row items-center justify-between mb-1.5">
-        <View className="flex-row items-center gap-3">
-          <Text className="text-xs font-bold" style={{ color: '#D4AF37' }}>
-            💵 {formatMoney(cash)}
-          </Text>
-          {hasPartner && (
-            <Text className="text-xs" style={{ color: '#FF69B4' }}>💕 Partner</Text>
-          )}
+    <View style={{ backgroundColor: C.surface, borderBottomWidth: 1, borderBottomColor: C.border, paddingTop: 48, paddingHorizontal: 16, paddingBottom: 12 }}>
+      {/* Row 1: Cash + stats */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <Text style={{ color: C.green, fontSize: 14, fontWeight: '800' }}>💵 {formatMoney(cash)}</Text>
+          {hasPartner && <Text style={{ color: '#F472B6', fontSize: 12 }}>💕 Partner</Text>}
         </View>
-        <View className="flex-row items-center gap-3">
-          {/* Hunger bar */}
-          <View className="flex-row items-center gap-1">
-            <Text className="text-xs" style={{ color: hungerColor }}>🍽️ {hunger}</Text>
-            <View className="w-14 h-1.5 bg-secondary rounded-full overflow-hidden">
-              <View className="h-1.5 rounded-full" style={{ width: `${hunger}%`, backgroundColor: hungerColor }} />
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          {/* Hunger */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+            <Text style={{ color: hungerColor, fontSize: 12 }}>🍽️ {hunger}</Text>
+            <View style={{ width: 44, height: 5, backgroundColor: C.border, borderRadius: 3, overflow: 'hidden' }}>
+              <View style={{ width: `${hunger}%`, height: 5, backgroundColor: hungerColor, borderRadius: 3 }} />
             </View>
           </View>
-          {/* Energy bar */}
-          <View className="flex-row items-center gap-1">
-            <Text className="text-xs" style={{ color: energyColor }}>⚡ {energy}</Text>
-            <View className="w-14 h-1.5 bg-secondary rounded-full overflow-hidden">
-              <View className="h-1.5 rounded-full" style={{ width: `${energy}%`, backgroundColor: energyColor }} />
+          {/* Energy */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+            <Text style={{ color: energyColor, fontSize: 12 }}>⚡ {energy}</Text>
+            <View style={{ width: 44, height: 5, backgroundColor: C.border, borderRadius: 3, overflow: 'hidden' }}>
+              <View style={{ width: `${energy}%`, height: 5, backgroundColor: energyColor, borderRadius: 3 }} />
             </View>
           </View>
         </View>
       </View>
 
-      {/* Row 2: Back button + Title */}
-      <View className="flex-row items-center gap-3">
+      {/* Row 2: Back + Title */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
         {showBack && (
-          <Pressable onPress={() => router.back()} className="p-1">
-            <ChevronLeft size={22} color="#D4AF37" />
+          <Pressable onPress={() => router.back()} style={{ padding: 4, marginRight: 4 }}>
+            <ChevronLeft size={22} color={C.gold} />
           </Pressable>
         )}
-        <View className="flex-1">
-          <Text className="text-foreground text-xl font-bold tracking-wide">{title}</Text>
-          {subtitle ? <Text className="text-muted-foreground text-xs mt-0.5">{subtitle}</Text> : null}
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: C.textPrimary, fontSize: 20, fontWeight: '800', letterSpacing: 0.3 }}>{title}</Text>
+          {subtitle ? <Text style={{ color: C.textSub, fontSize: 12, marginTop: 2 }}>{subtitle}</Text> : null}
         </View>
       </View>
 
-      {/* Row 3: Context-aware extra stats (screen-specific) */}
+      {/* Row 3: Extra stats */}
       {extraStats && extraStats.length > 0 && (
-        <View className="flex-row flex-wrap gap-x-4 gap-y-1 mt-2 pt-2"
-          style={{ borderTopWidth: 1, borderTopColor: '#1E1E1E' }}>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: C.border }}>
           {extraStats.map((s) => (
-            <Text key={s.label} className="text-xs" style={{ color: s.color ?? '#888' }}>
-              {s.label}: <Text className="font-bold" style={{ color: s.color ?? '#EAEAEA' }}>{s.value}</Text>
+            <Text key={s.label} style={{ color: C.textSub, fontSize: 12 }}>
+              {s.label}:{' '}
+              <Text style={{ color: s.color ?? C.textPrimary, fontWeight: '700' }}>{s.value}</Text>
             </Text>
           ))}
         </View>
@@ -85,4 +94,3 @@ export function GameHeader({ title, subtitle, showBack = true, extraStats }: Gam
     </View>
   );
 }
-

@@ -1,5 +1,15 @@
 import { Pressable, Text, View } from 'react-native';
 
+const C = {
+  bg:          '#0A0A0F',
+  gold:        '#F5C842',
+  green:       '#4ADE80',
+  red:         '#F87171',
+  border:      '#2A2A3A',
+  textPrimary: '#F1F0FF',
+  textSub:     '#9B9BB8',
+};
+
 interface GameButtonProps {
   label: string;
   onPress: () => void;
@@ -15,32 +25,39 @@ export function GameButton({
   disabled = false, fullWidth = true, size = 'md', icon,
 }: GameButtonProps) {
   const bgColors = {
-    primary: disabled ? '#555' : '#FFB81C',
-    secondary: '#1A1A1A',
-    danger: disabled ? '#555' : '#E32636',
-    ghost: 'transparent',
+    primary:   disabled ? '#555' : C.gold,
+    secondary: '#1A1A26',
+    danger:    disabled ? '#555' : C.red,
+    ghost:     'transparent',
   };
   const textColors = {
-    primary: '#0D0D0D',
-    secondary: '#E8E4D8',
-    danger: '#fff',
-    ghost: '#FFB81C',
+    primary:   C.bg,
+    secondary: C.textPrimary,
+    danger:    '#fff',
+    ghost:     C.gold,
   };
-  const paddings = { sm: 'py-2 px-3', md: 'py-3 px-4', lg: 'py-4 px-6' };
-  const fontSizes = { sm: 'text-sm', md: 'text-base', lg: 'text-lg' };
-  const borderStyle = variant === 'secondary' ? { borderWidth: 1, borderColor: '#333' }
-    : variant === 'ghost' ? { borderWidth: 1, borderColor: '#FFB81C' } : {};
+  const paddings = { sm: 8, md: 12, lg: 16 };
+  const fontSizes = { sm: 13, md: 15, lg: 16 };
+  const borderStyle = variant === 'secondary'
+    ? { borderWidth: 1, borderColor: C.border }
+    : variant === 'ghost'
+    ? { borderWidth: 1, borderColor: C.gold }
+    : {};
 
   return (
     <Pressable
       onPress={disabled ? undefined : onPress}
-      className={`items-center justify-center ${paddings[size]} ${fullWidth ? 'w-full' : ''}`}
-      style={{ backgroundColor: bgColors[variant], opacity: disabled ? 0.6 : 1, ...borderStyle }}
+      style={{
+        alignItems: 'center', justifyContent: 'center',
+        paddingVertical: paddings[size], paddingHorizontal: paddings[size] + 8,
+        width: fullWidth ? '100%' : undefined,
+        backgroundColor: bgColors[variant],
+        opacity: disabled ? 0.55 : 1,
+        borderRadius: 8,
+        ...borderStyle,
+      }}
     >
-      <Text
-        className={`font-bold ${fontSizes[size]} tracking-wide`}
-        style={{ color: textColors[variant] }}
-      >
+      <Text style={{ color: textColors[variant], fontWeight: '800', fontSize: fontSizes[size], letterSpacing: 0.4 }}>
         {icon ? `${icon}  ` : ''}{label}
       </Text>
     </Pressable>
