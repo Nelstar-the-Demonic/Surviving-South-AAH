@@ -216,8 +216,42 @@ export default function Shop() {
             </>
           )}
 
-          {tab !== 'blackmarket' && tab !== 'farming' && (
+          {tab !== 'blackmarket' && tab !== 'farming' && tab !== 'livestock_medical' && (
             currentItems.map(item => <ItemRow key={item.id} item={item} />)
+          )}
+
+          {tab === 'farming' && (
+            Object.entries(farmingGroups).map(([groupKey, items]) =>
+              items.length > 0 ? (
+                <View key={groupKey} style={{ marginBottom: 16 }}>
+                  <Text style={{ color: C.textMuted, fontSize: 11, fontWeight: '800', letterSpacing: 1.5, marginBottom: 8 }}>
+                    {groupKey === 'tools' ? '🪓 TOOLS & EQUIPMENT' :
+                     groupKey === 'animal_feed' ? '🌾 ANIMAL FEED' :
+                     groupKey === 'fertilizer' ? '🧪 FERTILIZERS' :
+                     '💦 PEST & WEED CONTROL'}
+                  </Text>
+                  {items.map(item => <ItemRow key={item.id} item={item} />)}
+                </View>
+              ) : null
+            )
+          )}
+
+          {tab === 'livestock_medical' && (
+            <View>
+              <View style={{ marginBottom: 16, padding: 12, backgroundColor: '#0A1200', borderWidth: 1, borderColor: C.green, borderRadius: 8 }}>
+                <Text style={{ color: C.green, fontSize: 12, fontWeight: '600' }}>
+                  💉 Veterinary medical kits treat sick or injured livestock. Each kit treats ONE individual animal. Kits are expensive — keep stock on hand to prevent losses.
+                </Text>
+              </View>
+              <Text style={{ color: C.textMuted, fontSize: 11, fontWeight: '800', letterSpacing: 1.5, marginBottom: 8 }}>🩺 LIVESTOCK MEDICAL KITS</Text>
+              {medicalItems.length === 0 ? (
+                <View style={{ padding: 24, alignItems: 'center', borderWidth: 1, borderColor: C.border, borderRadius: 10 }}>
+                  <Text style={{ color: C.textSub, fontSize: 13 }}>No medical kits available.</Text>
+                </View>
+              ) : (
+                medicalItems.map((item: any) => <ItemRow key={item.id} item={item} />)
+              )}
+            </View>
           )}
 
         </View>
