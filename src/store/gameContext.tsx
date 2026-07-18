@@ -151,6 +151,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         analyticsData:    action.payload.analyticsData   ?? blank.analyticsData,
         bugReports:       action.payload.bugReports      ?? blank.bugReports,
         registeredBusinessNames: action.payload.registeredBusinessNames ?? blank.registeredBusinessNames,
+        eventCooldowns:   action.payload.eventCooldowns  ?? blank.eventCooldowns,
       };
     }
 
@@ -728,6 +729,8 @@ function gameReducer(state: GameState, action: GameAction): GameState {
             discipline: Math.max(0, Math.min(100, s.stats.discipline + (sc.discipline ?? 0))),
             endurance: Math.max(0, Math.min(100, s.stats.endurance + (sc.endurance ?? 0))),
             drugEffectDaysLeft: s.stats.drugEffectDaysLeft ?? 0,
+            sickness: s.stats.sickness,
+            addictions: s.stats.addictions,
           },
         };
       }
@@ -774,7 +777,59 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       if (choice.effect.changeLocation) {
         s = { ...s, location: choice.effect.changeLocation };
       }
-
+      if (choice.effect.reputationChange) {
+        s = {
+          ...s,
+          stats: { ...s.stats, reputation: Math.max(0, Math.min(100, s.stats.reputation + choice.effect.reputationChange)) },
+        };
+      }
+      if (choice.effect.inventoryAdd && choice.effect.inventoryAdd.length > 0) {
+        let inv = [...s.inventory];
+        for (const addItem of choice.effect.inventoryAdd) {
+          const existingIdx = inv.findIndex(i => i.id === addItem.id);
+          if (existingIdx >= 0) {
+            inv[existingIdx] = { ...inv[existingIdx], quantity: inv[existingIdx].quantity + addItem.quantity };
+          } else {
+            inv.push({ ...addItem });
+          }
+        }
+        s = { ...s, inventory: inv };
+      }
+      if (choice.effect.inventoryRemove && choice.effect.inventoryRemove.length > 0) {
+        let inv = [...s.inventory];
+        for (const remItem of choice.effect.inventoryRemove) {
+          inv = inv.map(i => i.id === remItem.id ? { ...i, quantity: i.quantity - remItem.quantity } : i)
+                   .filter(i => i.quantity > 0.001);
+        }
+        s = { ...s, inventory: inv };
+      }
+      if (choice.effect.wantedLevelChange) {
+        s = {
+          ...s,
+          crimeState: {
+            ...s.crimeState,
+            wantedLevel: Math.max(0, Math.min(100, (s.crimeState.wantedLevel || 0) + choice.effect.wantedLevelChange)),
+          },
+        };
+      }
+      if (choice.effect.businessReputationChange && s.businesses.length > 0) {
+        const idx = Math.floor(Math.random() * s.businesses.length);
+        s = {
+          ...s,
+          businesses: s.businesses.map((b, i) => i === idx
+            ? { ...b, reputation: Math.max(0, Math.min(100, b.reputation + choice.effect.businessReputationChange!)) }
+            : b),
+        };
+      }
+      if (choice.effect.vehicleConditionChange && s.vehicles.length > 0) {
+        const idx = Math.floor(Math.random() * s.vehicles.length);
+        s = {
+          ...s,
+          vehicles: s.vehicles.map((v, i) => i === idx
+            ? { ...v, condition: Math.max(0, Math.min(100, v.condition + choice.effect.vehicleConditionChange!)) }
+            : v),
+        };
+      }
 
       // NPC meet event: accept adds NPC, reject sets cooldown
       if (choice.npcData) {
