@@ -1410,6 +1410,7 @@ export function createInitialGameState(
 
     pendingEvents: [],
     eventHistory: [],
+    eventCooldowns: {},
 
     crimeState: {
       cannabisSalesCaught: 0,
