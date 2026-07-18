@@ -1,5 +1,6 @@
 import type { GameState, GameEvent, InventoryItem, PlayerStats, CropPlot, Industry, FarmLaborer, CrimeType, OrchardPlot } from '@/types/game';
 import { AVAILABLE_JOBS, CROP_DEFINITIONS, LIVESTOCK_DEFINITIONS, JOB_CHAINS, getCurrentSalary, getJobChain, VEHICLE_DEFINITIONS, CRIME_DEFINITIONS, NPC_NAME_POOL, NPC_ROLE_POOL, CRIME_FREQUENCY, DRUG_EFFECTS, ORCHARD_DEFINITIONS } from './gameData';
+import { selectEventFromLibrary } from './eventLibrary';
 
 // ─── Stat Clamp ────────────────────────────────────────────────────────────────
 export function clamp(val: number, min = 0, max = 100): number {
@@ -794,11 +795,14 @@ export function performArtificialInsemination(state: GameState, livestockType: s
 
 // ─── Context-Aware Event Generation ───────────────────────────────────────────
 export function generateDailyEvents(state: GameState): GameState {
-  // Only fires every 7 days
-  if (state.day % 7 !== 0) return state;
+  // Cap concurrent pending events so the player is never buried under a stack
+  if (state.pendingEvents.length >= 3) return state;
 
-  // 3% base chance an event occurs at all this week
-  if (Math.random() > 0.03) return state;
+  // Daily chance that *something* happens today (replaces the old weekly/3% gate
+  // so the world feels alive instead of nearly static). Tune this constant to
+  // adjust overall event frequency.
+  const EVENT_CHANCE_PER_DAY = 0.4;
+  if (Math.random() > EVENT_CHANCE_PER_DAY) return state;
 
   const hasBusiness = state.businesses.length > 0;
   const hasFarm = state.cropPlots.length > 0 || state.livestock.length > 0;
@@ -932,15 +936,38 @@ export function generateDailyEvents(state: GameState): GameState {
     });
   }
 
-  if (possible.length === 0) return state;
+  // Pull a conditionally-eligible, weighted event from the expanded event
+  // library (hundreds of category-specific variations — crime, business,
+  // family, romance, farming, livestock, weather, and many more).
+  const libraryPick = selectEventFromLibrary(state);
 
-  // Pick exactly 1 event
-  const chosen = possible[Math.floor(Math.random() * possible.length)];
+  // Prefer the library most of the time (it's far richer and context-aware),
+  // but keep the original hardcoded pool alive as a fallback/supplement so
+  // nothing that existed before is lost.
+  let chosen: GameEvent | null = null;
+  let chosenTemplateId: string | null = null;
 
-  return {
+  if (libraryPick && (possible.length === 0 || Math.random() < 0.7)) {
+    chosen = libraryPick.event;
+    chosenTemplateId = libraryPick.templateId;
+  } else if (possible.length > 0) {
+    chosen = possible[Math.floor(Math.random() * possible.length)];
+  } else if (libraryPick) {
+    chosen = libraryPick.event;
+    chosenTemplateId = libraryPick.templateId;
+  }
+
+  if (!chosen) return state;
+
+  const nextState: GameState = {
     ...state,
     pendingEvents: [...state.pendingEvents, chosen],
+    eventCooldowns: chosenTemplateId
+      ? { ...(state.eventCooldowns ?? {}), [chosenTemplateId]: state.day }
+      : (state.eventCooldowns ?? {}),
   };
+
+  return nextState;
 }
 
 // ─── Add pest/disease alert to cropPlots (info-only, no event window choice) ──
