@@ -345,12 +345,24 @@ export interface NPC {
 export type EventType =
   | 'family' | 'business' | 'crime' | 'opportunity' | 'health'
   | 'farming' | 'neighbour' | 'random' | 'education' | 'vehicle'
-  | 'relationship' | 'employment' | 'government' | 'property' | 'daily' | 'social';
+  | 'relationship' | 'employment' | 'government' | 'property' | 'daily' | 'social'
+  // New categories added for the event expansion — additive only, old values untouched
+  | 'romance' | 'friendship' | 'npc' | 'police' | 'livestock' | 'weather'
+  | 'illness' | 'festival' | 'taxi' | 'school' | 'university' | 'community'
+  | 'politics' | 'corruption' | 'gambling' | 'alcohol' | 'drugs' | 'fire'
+  | 'theft' | 'market' | 'loadshedding' | 'water' | 'funeral' | 'wedding'
+  | 'ceremony' | 'sports' | 'religion' | 'strike' | 'protest' | 'meeting';
 
 export type EventCategory =
   | 'daily' | 'business' | 'farming' | 'property'
   | 'vehicle' | 'relationship' | 'crime' | 'health'
-  | 'education' | 'employment' | 'government';
+  | 'education' | 'employment' | 'government'
+  // New categories — additive only
+  | 'romance' | 'friendship' | 'npc' | 'police' | 'livestock' | 'weather'
+  | 'illness' | 'festival' | 'taxi' | 'school' | 'university' | 'community'
+  | 'politics' | 'corruption' | 'gambling' | 'alcohol' | 'drugs' | 'fire'
+  | 'theft' | 'market' | 'loadshedding' | 'water' | 'funeral' | 'wedding'
+  | 'ceremony' | 'sports' | 'religion' | 'strike' | 'protest' | 'meeting';
 
 export interface GameEvent {
   id: string;
@@ -375,6 +387,10 @@ export interface EventChoice {
     inventoryRemove: { id: string; quantity: number }[];
     enrollJob: string;
     changeLocation: Location;
+    // New effect hooks added for the event expansion — additive only
+    wantedLevelChange: number;        // crime heat delta
+    businessReputationChange: number; // applies to a random owned business
+    vehicleConditionChange: number;   // applies to a random owned vehicle
   }>;
   // NPC meet event extras (set by engine, consumed by context reducer)
   npcData?: { id: string; name: string; role: string; age: number; background: string; canOffer: string[] };
@@ -556,6 +572,7 @@ export interface GameState {
   // Events
   pendingEvents: GameEvent[];
   eventHistory: string[];
+  eventCooldowns: Record<string, number>; // templateId -> day last fired, prevents repeats too soon
 
   // Crime
   crimeState: CrimeState;
