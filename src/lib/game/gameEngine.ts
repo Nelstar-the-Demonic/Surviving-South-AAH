@@ -1,5 +1,5 @@
 import type { GameState, GameEvent, InventoryItem, PlayerStats, CropPlot, Industry, FarmLaborer, CrimeType, OrchardPlot } from '@/types/game';
-import { AVAILABLE_JOBS, CROP_DEFINITIONS, LIVESTOCK_DEFINITIONS, JOB_CHAINS, getCurrentSalary, getJobChain, VEHICLE_DEFINITIONS, CRIME_DEFINITIONS, NPC_NAME_POOL, NPC_ROLE_POOL, CRIME_FREQUENCY, DRUG_EFFECTS, ORCHARD_DEFINITIONS } from './gameData';
+import { AVAILABLE_JOBS, CROP_DEFINITIONS, LIVESTOCK_DEFINITIONS, JOB_CHAINS, getCurrentSalary, getJobChain, VEHICLE_DEFINITIONS, CRIME_DEFINITIONS, NPC_NAME_POOL, NPC_ROLE_POOL, CRIME_FREQUENCY, DRUG_EFFECTS, ALCOHOL_EFFECTS, ORCHARD_DEFINITIONS } from './gameData';
 import { selectEventFromLibrary } from './eventLibrary';
 
 // ─── Stat Clamp ────────────────────────────────────────────────────────────────
@@ -1355,7 +1355,84 @@ export function performTakeDrug(state: GameState, itemId: string): GameState {
   };
 }
 
-// ─── Action: Treat Livestock ─────────────────────────────────────────────────
+// ─── Black Market: Police Risk ──────────────────────────────────────────────
+// Rolled once per black-market purchase. If caught: the item is confiscated,
+// the player is fined, and their wanted level rises — a real, immediately
+// visible consequence rather than a silent probability.
+export function applyBlackMarketRisk(state: GameState, riskPercent: number, itemId: string, itemName: string): GameState {
+  const caught = Math.random() * 100 < riskPercent;
+  if (!caught) return state;
+
+  const fine = Math.round(riskPercent * (10 + Math.random() * 15)); // roughly R100-R1125 scaled by risk
+  const wantedGain = Math.max(5, Math.round(riskPercent / 3));
+
+  const newInventory = state.inventory
+    .map(i => i.id === itemId ? { ...i, quantity: i.quantity - 1 } : i)
+    .filter(i => i.quantity > 0.001);
+
+  return {
+    ...state,
+    cash: Math.max(0, state.cash - fine),
+    inventory: newInventory,
+    crimeState: {
+      ...state.crimeState,
+      wantedLevel: Math.max(0, Math.min(100, (state.crimeState.wantedLevel || 0) + wantedGain)),
+    },
+    financeHistory: [...state.financeHistory, {
+      day: state.day,
+      description: `Police fine — caught with ${itemName}`,
+      amount: -fine,
+      category: 'other' as const,
+    }],
+    pendingEvents: [...state.pendingEvents, {
+      id: `bm_caught_${itemId}_${state.day}_${Math.random().toString(36).slice(2, 6)}`,
+      title: '🚨 Spotted by Police',
+      description: `You were caught with ${itemName} on you. It's been confiscated, you've been fined R${fine}, and police attention on you has increased.`,
+      type: 'police',
+      category: 'police',
+      choices: [{ label: 'Damn it', outcome: '', effect: {} }],
+      day: state.day,
+    }],
+  };
+}
+
+// ─── Action: Drink Alcohol ──────────────────────────────────────────────────
+export function performDrinkAlcohol(state: GameState, itemId: string): GameState {
+  const item = state.inventory.find(i => i.id === itemId && i.category === 'alcohol' && i.quantity > 0);
+  if (!item) return state;
+
+  const effect = ALCOHOL_EFFECTS[itemId as keyof typeof ALCOHOL_EFFECTS] ?? (item.drugType ? ALCOHOL_EFFECTS[item.drugType as keyof typeof ALCOHOL_EFFECTS] : undefined);
+  if (!effect) return consumeItem(state, itemId);
+
+  const newInventory = state.inventory
+    .map(i => i.id === itemId ? { ...i, quantity: i.quantity - 1 } : i)
+    .filter(i => i.quantity > 0);
+
+  let updatedStats = { ...state.stats };
+  updatedStats.energy = clamp((updatedStats.energy ?? 50) + effect.energyBoost);
+  updatedStats.happiness = clamp((updatedStats.happiness ?? 50) + effect.happinessBoost);
+  updatedStats.fitness = clamp((updatedStats.fitness ?? 50) + effect.fitnessHit);
+  updatedStats.discipline = clamp((updatedStats.discipline ?? 50) + effect.disciplineHit);
+  updatedStats.endurance = clamp((updatedStats.endurance ?? 50) + effect.enduranceHit);
+  updatedStats.health = clamp((updatedStats.health ?? 50) + effect.healthHit);
+
+  return {
+    ...state,
+    inventory: newInventory,
+    stats: updatedStats,
+    pendingEvents: [...state.pendingEvents, {
+      id: `alcohol_${itemId}_${state.day}`,
+      title: `🍺 ${item.name}`,
+      description: effect.description,
+      type: 'alcohol',
+      category: 'alcohol',
+      choices: [{ label: 'OK', outcome: '', effect: {} }],
+      day: state.day,
+    }],
+  };
+}
+
+
 export function treatLivestock(state: GameState, livestockType: string, count: number): GameState {
   const medkitId = `medkit_${livestockType.toLowerCase()}`;
   const medkit = state.inventory.find(i => i.id === medkitId && i.quantity > 0);
