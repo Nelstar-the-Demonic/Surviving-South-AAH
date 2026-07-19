@@ -1495,49 +1495,49 @@ export const WEAPON_DEFINITIONS = [
     id: 'knuckledusters',
     name: 'Knuckledusters',
     price: 350, category: 'weapon' as const, isFirearm: false,
-    crimeSuccessBonus: 8,
+    crimeSuccessBonus: 8, riskPercent: 5, demand: 'Low' as const, supply: 'Plentiful' as const,
     description: 'Brass knuckles. Illegal to use; possession low risk.',
   },
   {
     id: 'switchblade',
     name: 'Switchblade Knife',
     price: 500, category: 'weapon' as const, isFirearm: false,
-    crimeSuccessBonus: 12,
+    crimeSuccessBonus: 12, riskPercent: 12, demand: 'Medium' as const, supply: 'Plentiful' as const,
     description: 'Spring-loaded blade. Concealed carry. Moderate arrest risk.',
   },
   {
     id: 'panga',
     name: 'Panga (Machete)',
     price: 280, category: 'weapon' as const, isFirearm: false,
-    crimeSuccessBonus: 15,
+    crimeSuccessBonus: 15, riskPercent: 15, demand: 'Medium' as const, supply: 'Plentiful' as const,
     description: 'Heavy blade. High intimidation factor. Cannot be concealed.',
   },
   {
     id: 'crowbar',
     name: 'Crowbar',
     price: 200, category: 'weapon' as const, isFirearm: false,
-    crimeSuccessBonus: 10,
+    crimeSuccessBonus: 10, riskPercent: 10, demand: 'Low' as const, supply: 'Plentiful' as const,
     description: 'Useful for burglary & intimidation. Not a firearm.',
   },
   {
     id: 'handgun_illegal',
     name: 'Illegal Handgun (9mm)',
     price: 4500, category: 'weapon' as const, isFirearm: true,
-    crimeSuccessBonus: 30,
+    crimeSuccessBonus: 30, riskPercent: 40, demand: 'Medium' as const, supply: 'Scarce' as const,
     description: '⚠️ FIREARM — possession without licence = immediate arrest. High crime bonus.',
   },
   {
     id: 'shotgun_sawn',
     name: 'Sawn-off Shotgun',
     price: 6000, category: 'weapon' as const, isFirearm: true,
-    crimeSuccessBonus: 40,
+    crimeSuccessBonus: 40, riskPercent: 50, demand: 'Low' as const, supply: 'Scarce' as const,
     description: '⚠️ ILLEGAL FIREARM — very high arrest risk. Maximum intimidation.',
   },
   {
     id: 'taser',
     name: 'Taser / Stun Gun',
     price: 1200, category: 'weapon' as const, isFirearm: false,
-    crimeSuccessBonus: 18,
+    crimeSuccessBonus: 18, riskPercent: 18, demand: 'Low' as const, supply: 'Limited' as const,
     description: 'Non-lethal but illegal in most contexts. Moderate arrest risk.',
   },
 ];
@@ -1545,32 +1545,60 @@ export const WEAPON_DEFINITIONS = [
 // ─── Drugs (Black Market — High Risk Locations Only) ──────────────────────────
 export const DRUG_DEFINITIONS = [
   {
+    id: 'cannabis_bag',
+    name: 'Cannabis — small bag',
+    price: 60, category: 'drug' as const, drugType: 'cannabis',
+    sellPrice: 120, riskPercent: 8, demand: 'High' as const, supply: 'Plentiful' as const,
+    description: 'Low risk, widely available. Mild relaxant effects.',
+  },
+  {
     id: 'tik_bag',
     name: 'Tik (Crystal Meth) — small bag',
     price: 150, category: 'drug' as const, drugType: 'tik',
-    sellPrice: 300,
+    sellPrice: 300, riskPercent: 25, demand: 'High' as const, supply: 'Plentiful' as const,
     description: 'High-risk. Heavy addiction. Found in township/city.',
   },
   {
     id: 'nyaope_wrap',
     name: 'Nyaope — wrap',
     price: 25, category: 'drug' as const, drugType: 'nyaope',
-    sellPrice: 60,
+    sellPrice: 60, riskPercent: 18, demand: 'High' as const, supply: 'Plentiful' as const,
     description: 'Extremely addictive street drug. Township only.',
+  },
+  {
+    id: 'mandrax_tablet',
+    name: 'Mandrax Tablet',
+    price: 120, category: 'drug' as const, drugType: 'mandrax',
+    sellPrice: 250, riskPercent: 28, demand: 'Medium' as const, supply: 'Limited' as const,
+    description: 'Sedative street drug, often smoked. High arrest risk.',
   },
   {
     id: 'cocaine_gram',
     name: 'Cocaine — 1g',
     price: 800, category: 'drug' as const, drugType: 'cocaine',
-    sellPrice: 1500,
+    sellPrice: 1500, riskPercent: 30, demand: 'Medium' as const, supply: 'Limited' as const,
     description: 'Premium drug. City & club circuit.',
+  },
+  {
+    id: 'heroin_gram',
+    name: 'Heroin — 1g',
+    price: 1000, category: 'drug' as const, drugType: 'heroin',
+    sellPrice: 2000, riskPercent: 45, demand: 'Low' as const, supply: 'Scarce' as const,
+    description: '⚠️ EXTREMELY DANGEROUS. Severe health risk, heavy addiction, harshest police attention.',
   },
   {
     id: 'pills_ecstasy',
     name: 'Ecstasy Tablet',
     price: 200, category: 'drug' as const, drugType: 'ecstasy',
-    sellPrice: 450,
+    sellPrice: 450, riskPercent: 20, demand: 'Medium' as const, supply: 'Limited' as const,
     description: 'Club drug. City nightlife scene.',
+  },
+  {
+    id: 'prescription_pills',
+    name: 'Prescription Pills (unlicensed)',
+    price: 100, category: 'drug' as const, drugType: 'prescription',
+    sellPrice: 220, riskPercent: 10, demand: 'Medium' as const, supply: 'Limited' as const,
+    description: 'Diverted prescription medication. Lower risk, still illegal without a script.',
   },
 ];
 
@@ -1585,7 +1613,105 @@ export const DRUG_EFFECTS: Record<string, {
   cocaine: { energyBoost: 35, fitnessHit: -5,  disciplineHit: -8,  enduranceHit: -5,  healthHit: -8,  happinessBoost: 20, durationDays: 1, description: 'Short intense high. Crashes hard afterward.' },
   ecstasy: { energyBoost: 30, fitnessHit: -3,  disciplineHit: -6,  enduranceHit: -4,  healthHit: -6,  happinessBoost: 25, durationDays: 1, description: 'Euphoric and social. Moderate physical cost.' },
   cannabis:{ energyBoost: 5,  fitnessHit: -2,  disciplineHit: -5,  enduranceHit: -2,  healthHit: -3,  happinessBoost: 12, durationDays: 1, description: 'Mild relaxant. Low physical impact.' },
+  mandrax: { energyBoost: -10, fitnessHit: -8, disciplineHit: -18, enduranceHit: -10, healthHit: -15, happinessBoost: 18, durationDays: 2, description: 'Heavy sedative. Impairs judgement badly, high dependency risk.' },
+  heroin:  { energyBoost: -25, fitnessHit: -20, disciplineHit: -30, enduranceHit: -20, healthHit: -30, happinessBoost: 30, durationDays: 4, description: 'Severe, fast-forming addiction. Devastating long-term health cost.' },
+  prescription: { energyBoost: 10, fitnessHit: -2, disciplineHit: -3, enduranceHit: -2, healthHit: -3, happinessBoost: 8, durationDays: 1, description: 'Misused prescription medication. Mild relief, real dependency risk.' },
 };
+
+// ─── Alcohol (Black Market — unlicensed/home-brewed) ──────────────────────────
+export const ALCOHOL_DEFINITIONS = [
+  {
+    id: 'home_brew_beer',
+    name: 'Home-brewed Beer',
+    price: 25, category: 'alcohol' as const, drugType: 'homebrew',
+    sellPrice: 55, riskPercent: 4, demand: 'High' as const, supply: 'Plentiful' as const,
+    description: 'Unlicensed home brew. Low risk, mild buzz.',
+  },
+  {
+    id: 'moonshine_bottle',
+    name: 'Moonshine (unlicensed spirits)',
+    price: 60, category: 'alcohol' as const, drugType: 'moonshine',
+    sellPrice: 130, riskPercent: 8, demand: 'High' as const, supply: 'Plentiful' as const,
+    description: 'Strong homemade spirit sold without a licence. Rough on the body.',
+  },
+];
+
+export const ALCOHOL_EFFECTS: Record<string, {
+  energyBoost: number; fitnessHit: number; disciplineHit: number;
+  enduranceHit: number; healthHit: number; happinessBoost: number;
+  durationDays: number; description: string;
+}> = {
+  homebrew:  { energyBoost: -2, fitnessHit: -1, disciplineHit: -3, enduranceHit: -1, healthHit: -2, happinessBoost: 8,  durationDays: 1, description: 'Home-brewed beer. Mild buzz, mild cost.' },
+  moonshine: { energyBoost: -5, fitnessHit: -3, disciplineHit: -8, enduranceHit: -3, healthHit: -6, happinessBoost: 14, durationDays: 1, description: 'Strong homemade spirit. Rough on the body the next day.' },
+};
+
+// ─── Fake IDs (Black Market documents) ────────────────────────────────────────
+export const FAKE_ID_DEFINITIONS = [
+  {
+    id: 'basic_fake_id',
+    name: 'Basic Fake ID',
+    price: 400, category: 'document' as const,
+    riskPercent: 15, demand: 'Medium' as const, supply: 'Limited' as const,
+    description: 'Passable for casual age checks. Won\'t survive real scrutiny.',
+  },
+  {
+    id: 'premium_fake_id',
+    name: 'Premium Forged ID',
+    price: 1200, category: 'document' as const,
+    riskPercent: 25, demand: 'Low' as const, supply: 'Scarce' as const,
+    description: 'High-quality forgery. Convincing, but expensive and risky to source.',
+  },
+];
+
+// ─── Stolen Goods (Black Market — buy cheap, resell at a markup) ──────────────
+export const STOLEN_GOODS_DEFINITIONS = [
+  {
+    id: 'stolen_phone',
+    name: 'Stolen Smartphone',
+    price: 300, category: 'stolen_goods' as const,
+    sellPrice: 700, riskPercent: 20, demand: 'High' as const, supply: 'Plentiful' as const,
+    description: 'Hot but functional. Best resold quickly.',
+  },
+  {
+    id: 'stolen_laptop',
+    name: 'Stolen Laptop',
+    price: 900, category: 'stolen_goods' as const,
+    sellPrice: 2200, riskPercent: 25, demand: 'Medium' as const, supply: 'Limited' as const,
+    description: 'Higher value, higher risk to move.',
+  },
+  {
+    id: 'stolen_car_radio',
+    name: 'Stolen Car Radio/Infotainment Unit',
+    price: 150, category: 'stolen_goods' as const,
+    sellPrice: 350, riskPercent: 15, demand: 'Medium' as const, supply: 'Plentiful' as const,
+    description: 'Common, easy to offload.',
+  },
+  {
+    id: 'stolen_jewelry',
+    name: 'Stolen Jewellery',
+    price: 600, category: 'stolen_goods' as const,
+    sellPrice: 1500, riskPercent: 22, demand: 'Low' as const, supply: 'Scarce' as const,
+    description: 'Needs a discreet buyer. Big payout if you find one.',
+  },
+];
+
+// ─── Illegal Seeds (Black Market — plant for an off-books harvest) ────────────
+export const ILLEGAL_SEED_DEFINITIONS = [
+  {
+    id: 'cannabis_seeds',
+    name: 'Cannabis Seeds',
+    price: 80, category: 'illegal_seed' as const,
+    riskPercent: 10, demand: 'Medium' as const, supply: 'Limited' as const,
+    description: 'Plant illegally for a cannabis harvest. High yield if grown discreetly.',
+  },
+  {
+    id: 'unregulated_maize_seeds',
+    name: 'Unregulated GM Maize Seeds',
+    price: 150, category: 'illegal_seed' as const,
+    riskPercent: 5, demand: 'Low' as const, supply: 'Limited' as const,
+    description: 'Unlicensed high-yield seed stock. Illegal to plant without a permit.',
+  },
+];
 
 // ─── Drug Business Stock items ────────────────────────────────────────────────
 export const DRUG_BUSINESS_STOCK = [
