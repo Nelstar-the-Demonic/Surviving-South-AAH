@@ -284,7 +284,8 @@ export interface Vehicle {
 export type InventoryCategory =
   | 'food' | 'cooked_meal' | 'harvest' | 'meat' | 'livestock_product'
   | 'hygiene' | 'clothing' | 'farm_equipment' | 'farm_input'
-  | 'document' | 'weapon' | 'drug' | 'livestock_medical';
+  | 'document' | 'weapon' | 'drug' | 'livestock_medical'
+  | 'stolen_goods' | 'illegal_seed' | 'alcohol';
 
 export interface InventoryItem {
   id: string;
