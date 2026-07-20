@@ -1,0 +1,1790 @@
+import * as FileSystem from 'expo-file-system/legacy';
+import { createContext, useCallback, useContext, useEffect, useReducer } from 'react';
+import type { Background, GameState, Gender, InventoryItem, Industry, AdRewardType, AnalyticsData } from '@/types/game';
+import {
+  createInitialGameState, AVAILABLE_JOBS, EDUCATION_COURSES, BUSINESS_DEFINITIONS,
+  PROPERTY_DEFINITIONS, VEHICLE_DEFINITIONS, SHOP_ITEMS, RECIPES, CROP_DEFINITIONS,
+  LIVESTOCK_DEFINITIONS, LICENCE_DEFINITIONS, JOB_CHAINS, getJobChain, getCurrentRankTitle, getCurrentSalary,
+  WEAPON_DEFINITIONS, DRUG_DEFINITIONS, ORCHARD_DEFINITIONS,
+  FAKE_ID_DEFINITIONS, STOLEN_GOODS_DEFINITIONS, ILLEGAL_SEED_DEFINITIONS, ALCOHOL_DEFINITIONS,
+} from '@/lib/game/gameData';
+import {
+  applyDailyTick, performWork, performExercise, performStudy, performSocialize,
+  performRest, performShower, consumeItem, performPrisonLabour, performPrisonStudy,
+  performPrisonExercise, checkPrisonRelease, harvestCrop, harvestAllCrops, sellHarvest,
+  slaughterLivestock, applyAnimalFeed, enrollFormalJob, resignFormalJob,
+  canWork, getWorkActionsUsedToday, getMaxWorkActionsPerDay,
+  applyFertilizer, weedCropPlot, clearFarmEvent, hireFarmLaborer, fireFarmLaborer,
+  performArtificialInsemination, performCrime, meetNewNPC, removeNPC, flirtNPC,
+  advanceRomance, applyNPCBenefit, performTakeDrug, treatLivestock,
+  sellLivestockProduce, sellCannabisHarvest,
+  performHarvestOrchard, performSlaughterForMeat, performGrantBonusAction,
+  healAllLivestock, sellLivestockBulk, applyBlackMarketRisk, performDrinkAlcohol,
+} from '@/lib/game/gameEngine';
+
+// ─── Save Keys ────────────────────────────────────────────────────────────────
+const SAVE_FILE = (FileSystem.documentDirectory ?? '') + 'ssa_game_save.json';
+const SLOT_FILES = [
+  (FileSystem.documentDirectory ?? '') + 'ssa_save_1.json',
+  (FileSystem.documentDirectory ?? '') + 'ssa_save_2.json',
+  (FileSystem.documentDirectory ?? '') + 'ssa_save_3.json',
+];
+
+// ─── Action Types ─────────────────────────────────────────────────────────────
+type GameAction =
+  | { type: 'LOAD_GAME'; payload: GameState }
+  | { type: 'NEW_GAME'; payload: { name: string; gender: Gender; background: Background } }
+  | { type: 'ADVANCE_DAY' }
+  | { type: 'WORK'; payload: string }
+  | { type: 'EXERCISE'; payload: string }
+  | { type: 'STUDY' }
+  | { type: 'SOCIALIZE' }
+  | { type: 'REST' }
+  | { type: 'SHOWER' }
+  | { type: 'CONSUME_ITEM'; payload: string }
+  | { type: 'COOK_MEAL'; payload: string }
+  | { type: 'BUY_ITEMS'; payload: { itemId: string; quantity: number; price: number; category: string }[] }
+  | { type: 'ENROLL_COURSE'; payload: string }
+  | { type: 'START_BUSINESS'; payload: string }
+  | { type: 'BUY_PROPERTY'; payload: { defIndex: number; owned: boolean } }
+  | { type: 'BUY_VEHICLE'; payload: number }
+  | { type: 'PLANT_CROP'; payload: string }
+  | { type: 'HARVEST_CROP'; payload: string }
+  | { type: 'SELL_HARVEST'; payload: { itemId: string; quantity: number } }
+  | { type: 'BUY_LIVESTOCK'; payload: { type: string; isMale: boolean } }
+  | { type: 'SLAUGHTER_LIVESTOCK'; payload: { type: string; isMale: boolean } }
+  | { type: 'SELL_LIVESTOCK'; payload: { type: string; isMale: boolean } }
+  | { type: 'BANK_DEPOSIT'; payload: number }
+  | { type: 'BANK_WITHDRAW'; payload: number }
+  | { type: 'NOTICE_DEPOSIT'; payload: number }
+  | { type: 'NOTICE_WITHDRAW' }
+  | { type: 'APPLY_SASSA'; payload?: string }
+  | { type: 'APPLY_LICENCE'; payload: string }
+  | { type: 'RESOLVE_EVENT'; payload: { eventId: string; choiceIndex: number } }
+  | { type: 'PRISON_LABOUR' }
+  | { type: 'PRISON_STUDY' }
+  | { type: 'PRISON_EXERCISE' }
+  | { type: 'PRISON_SOCIALIZE' }
+  | { type: 'INTERACT_NPC'; payload: { npcId: string; action: 'greet' | 'help' | 'conflict' } }
+  | { type: 'UPDATE_SETTINGS'; payload: Partial<GameState['settings']> }
+  | { type: 'TOGGLE_AUTO_CONSUME' }
+  | { type: 'CHANGE_LOCATION'; payload: string }
+  | { type: 'GET_JOB'; payload: string }
+  | { type: 'QUIT_JOB' }
+  | { type: 'DISMISS_EVENT'; payload: string }
+  | { type: 'RESET_GAME' }
+  | { type: 'SOCIALIZE_TYPED'; payload: string }
+  | { type: 'APPLY_ANIMAL_FEED'; payload: { livestockType: string; feedKg: number } }
+  | { type: 'ENROLL_FORMAL_JOB'; payload: string }
+  | { type: 'RESIGN_FORMAL_JOB' }
+  | { type: 'PROMOTE_JOB' }
+  | { type: 'APPLY_FERTILIZER'; payload: string }
+  | { type: 'WEED_CROP'; payload: string }
+  | { type: 'CLEAR_FARM_EVENT'; payload: string }
+  | { type: 'HIRE_FARM_LABORER' }
+  | { type: 'FIRE_FARM_LABORER'; payload: string }
+  | { type: 'RENT_OUT_PROPERTY'; payload: { propertyId: string; monthlyRent: number } }
+  | { type: 'UNRENT_PROPERTY'; payload: string }
+  | { type: 'SET_PRIMARY_RESIDENCE'; payload: string }
+  | { type: 'APPLY_SCHOLARSHIP'; payload: string }
+  | { type: 'HOSPITAL_VISIT'; payload: { cost: number; effects: Partial<Record<string, number>> } }
+  | { type: 'PERFORM_AI'; payload: string }
+  | { type: 'SELL_LIVESTOCK_PRODUCE'; payload: { itemId: string; quantity: number } }
+  | { type: 'SELL_CANNABIS_HARVEST'; payload: number }
+  | { type: 'PERFORM_CRIME'; payload: string }
+  | { type: 'BUY_WEAPON'; payload: string }
+  | { type: 'BUY_DRUG'; payload: string }
+  | { type: 'BUY_FAKE_ID'; payload: string }
+  | { type: 'BUY_STOLEN_GOODS'; payload: string }
+  | { type: 'BUY_ILLEGAL_SEED'; payload: string }
+  | { type: 'BUY_ALCOHOL'; payload: string }
+  | { type: 'DRINK_ALCOHOL'; payload: string }
+  | { type: 'MEET_NPC'; payload?: { id: string; name: string; role: string; age: number; background: string; canOffer: string[] } }
+  | { type: 'ADVANCE_ROMANCE'; payload: string }
+  | { type: 'NPC_BENEFIT'; payload: { npcId: string; benefit: string } }
+  | { type: 'SELL_PROPERTY'; payload: string }
+  | { type: 'SELL_VEHICLE'; payload: number }
+  | { type: 'REMOVE_NPC'; payload: string }
+  | { type: 'TAKE_DRUG'; payload: string }
+  | { type: 'FLIRT_NPC'; payload: string }
+  | { type: 'TREAT_LIVESTOCK'; payload: { livestockType: string; count: number } }
+  | { type: 'RESTOCK_BUSINESS'; payload: { businessId: string; itemId: string; quantity: number; cost: number } }
+  | { type: 'PLANT_ORCHARD'; payload: { treeType: string; cost: number } }
+  | { type: 'HARVEST_ORCHARD'; payload: string }
+  | { type: 'BUY_ORCHARD_PLOT' }
+  | { type: 'SELL_INVENTORY_ITEM'; payload: { itemId: string; quantity: number } }
+  | { type: 'CLAIM_AD_REWARD'; payload: string }
+  | { type: 'GRANT_BONUS_ACTION' }
+  | { type: 'ADVANCE_DAY_RESET_BONUS_ACTIONS' }
+  | { type: 'REGISTER_BUSINESS'; payload: string }
+  | { type: 'DISMISS_DAY_SUMMARY' }
+  | { type: 'TAKE_LOAN'; payload: { id: string; amount: number; dailyInterest: number } }
+  | { type: 'PAY_LOAN'; payload: { id: string; amount: number } }
+  | { type: 'GIFT_NPC'; payload: { npcId: string; itemId: string } }
+  | { type: 'HARVEST_ALL_CROPS' }
+  | { type: 'HEAL_ALL_LIVESTOCK'; payload: string }
+  | { type: 'SELL_LIVESTOCK_BULK'; payload: { type: string; isMale: boolean; count: number; sellExcessOnly: boolean } }
+  | { type: 'BUY_CROP_PLOT' }
+  | { type: 'SUBMIT_BUG_REPORT'; payload: { description: string; category: 'crash' | 'balance' | 'gameplay' | 'ui' | 'other' } };
+
+// ─── Reducer ──────────────────────────────────────────────────────────────────
+function gameReducer(state: GameState, action: GameAction): GameState {
+  switch (action.type) {
+    case 'LOAD_GAME': {
+      const blank = createInitialGameState('_', 'Male', 'unemployed_youth');
+      return {
+        ...blank,
+        ...action.payload,
+        weather:          action.payload.weather         ?? blank.weather,
+        perks:            action.payload.perks           ?? blank.perks,
+        stats:            { ...blank.stats, ...action.payload.stats },
+        bank:             { ...blank.bank, ...action.payload.bank },
+        crimeState:       { ...blank.crimeState, ...action.payload.crimeState },
+        inventory:        action.payload.inventory       ?? blank.inventory,
+        properties:       action.payload.properties      ?? blank.properties,
+        vehicles:         action.payload.vehicles        ?? blank.vehicles,
+        cropPlots:        action.payload.cropPlots       ?? blank.cropPlots,
+        orchardPlots:     action.payload.orchardPlots    ?? blank.orchardPlots,
+        livestock:        action.payload.livestock       ?? blank.livestock,
+        businesses:       action.payload.businesses      ?? blank.businesses,
+        farmLaborers:     action.payload.farmLaborers    ?? blank.farmLaborers,
+        npcs:             action.payload.npcs            ?? blank.npcs,
+        prison:           action.payload.prison          ?? blank.prison,
+        financeHistory:   action.payload.financeHistory  ?? blank.financeHistory,
+        adRewards:        action.payload.adRewards       ?? blank.adRewards,
+        cropPlotsOwned:   action.payload.cropPlotsOwned  ?? blank.cropPlotsOwned,
+        orchardPlotsOwned:action.payload.orchardPlotsOwned ?? blank.orchardPlotsOwned,
+        analyticsData:    action.payload.analyticsData   ?? blank.analyticsData,
+        bugReports:       action.payload.bugReports      ?? blank.bugReports,
+        registeredBusinessNames: action.payload.registeredBusinessNames ?? blank.registeredBusinessNames,
+        eventCooldowns:   action.payload.eventCooldowns  ?? blank.eventCooldowns,
+      };
+    }
+
+    case 'NEW_GAME':
+      return createInitialGameState(action.payload.name, action.payload.gender, action.payload.background);
+
+    case 'ADVANCE_DAY': {
+      let s = applyDailyTick(state);
+      s = checkPrisonRelease(s);
+      // Prison uses 3 actions/day; normal play uses 4
+      const maxActions = s.prison.imprisoned ? 3 : 4;
+      return {
+        ...s,
+        maxActionsPerDay: maxActions,
+        adRewards: {
+          ...(s.adRewards ?? { lastClaimedDay: {}, bonusActionsToday: 0 }),
+          bonusActionsToday: 0,
+        },
+      };
+    }
+
+    case 'WORK':
+      if (!canWork(state)) return state;
+      return performWork(state, action.payload);
+
+    case 'EXERCISE':
+      if (state.actionsUsedToday.includes('exercise')) return state;
+      return performExercise(state, action.payload);
+
+    case 'STUDY':
+      if (state.actionsUsedToday.includes('study')) return state;
+      return performStudy(state);
+
+    case 'SOCIALIZE':
+      if (state.actionsUsedToday.includes('socialize')) return state;
+      return performSocialize(state, 'casual');
+
+    case 'REST':
+      // REST never consumes an action
+      return performRest(state);
+
+    case 'SHOWER':
+      // SHOWER never consumes an action — hygiene maintenance is free
+      return performShower(state);
+
+    case 'CONSUME_ITEM':
+      return consumeItem(state, action.payload);
+
+    case 'COOK_MEAL': {
+      const recipe = RECIPES.find(r => r.id === action.payload);
+      if (!recipe) return state;
+
+      // Check ingredients
+      for (const ing of recipe.ingredients) {
+        const item = state.inventory.find(i => i.id === ing.itemId);
+        if (!item || item.quantity < ing.quantity) return state;
+      }
+
+      // Deduct ingredients
+      let newInventory = state.inventory.map(item => {
+        const ing = recipe.ingredients.find(i => i.itemId === item.id);
+        if (!ing) return item;
+        return { ...item, quantity: item.quantity - ing.quantity };
+      }).filter(i => i.quantity > 0.001);
+
+      // Add cooked meal
+      const existing = newInventory.find(i => i.id === `meal_${recipe.id}`);
+      if (existing) {
+        newInventory = newInventory.map(i =>
+          i.id === `meal_${recipe.id}` ? { ...i, quantity: i.quantity + 1 } : i
+        );
+      } else {
+        newInventory.push({
+          id: `meal_${recipe.id}`,
+          name: recipe.name,
+          category: 'cooked_meal',
+          quantity: 1,
+          unit: 'serving',
+          hungerRestore: recipe.hungerRestore,
+        });
+      }
+
+      return {
+        ...state,
+        inventory: newInventory,
+        stats: {
+          ...state.stats,
+          happiness: Math.min(100, state.stats.happiness + recipe.happinessBonus),
+        },
+      };
+    }
+
+    case 'BUY_ITEMS': {
+      const totalCost = action.payload.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      if (state.cash < totalCost) return state;
+
+      // All purchasable items
+      const allShopItems = [
+        ...SHOP_ITEMS.food,
+        ...SHOP_ITEMS.hygiene,
+        ...SHOP_ITEMS.clothing,
+        ...SHOP_ITEMS.farmEquipment,
+        ...SHOP_ITEMS.farmInputs,
+        ...SHOP_ITEMS.livestock_medical,
+      ];
+
+      let newInventory = [...state.inventory];
+      for (const purchase of action.payload) {
+        const shopItem = allShopItems.find(s => s.id === purchase.itemId);
+        if (!shopItem) continue;
+
+        // Map category correctly for farm items
+        let category = purchase.category as InventoryItem['category'];
+        if (SHOP_ITEMS.farmEquipment.some(e => e.id === purchase.itemId)) category = 'farm_equipment';
+        else if (SHOP_ITEMS.farmInputs.some(e => e.id === purchase.itemId)) category = 'farm_input';
+        else if (SHOP_ITEMS.livestock_medical.some(e => e.id === purchase.itemId)) category = 'livestock_medical';
+
+        const existing = newInventory.find(i => i.id === purchase.itemId);
+        if (existing) {
+          newInventory = newInventory.map(i =>
+            i.id === purchase.itemId ? { ...i, quantity: i.quantity + purchase.quantity } : i
+          );
+        } else {
+          newInventory.push({
+            id: shopItem.id,
+            name: shopItem.name,
+            category,
+            quantity: purchase.quantity,
+            unit: shopItem.unit,
+            hungerRestore: ('hungerRestore' in shopItem) ? (shopItem as { hungerRestore?: number }).hungerRestore : undefined,
+            hygieneRestore: ('hygieneRestore' in shopItem) ? (shopItem as { hygieneRestore?: number }).hygieneRestore : undefined,
+          });
+        }
+      }
+
+      return {
+        ...state,
+        cash: state.cash - totalCost,
+        inventory: newInventory,
+        financeHistory: [...state.financeHistory, {
+          day: state.day,
+          description: 'Shop purchase',
+          amount: -totalCost,
+          category: 'shop',
+        }],
+      };
+    }
+
+    case 'ENROLL_COURSE': {
+      const course = EDUCATION_COURSES.find(c => c.id === action.payload);
+      if (!course) return state;
+      if (state.currentCourse) return state;
+      if (state.completedCourses.includes(course.id)) return state;
+
+      const hasPrereqs = course.requiredQualifications.every(q => state.qualifications.includes(q));
+      if (!hasPrereqs) return state;
+
+      // Calculate scholarship discount
+      let scholarshipPct = 0;
+      if (course.institution === 'University' || course.institution === 'TVET') {
+        // NSFAS: matric + cash ≤ 5000
+        if (state.qualifications.includes('Matric') && state.cash <= 5000) scholarshipPct = 80;
+        // SETA: any TVET/Short Course, cash ≤ 10000
+        else if (state.cash <= 10000) scholarshipPct = Math.max(scholarshipPct, 50);
+      }
+      if (course.institution === 'Short Course' && state.cash <= 10000) {
+        scholarshipPct = Math.max(scholarshipPct, 50);
+      }
+      // Merit bursary: matric + intelligence ≥ 75
+      if (state.qualifications.includes('Matric') && state.stats.intelligence >= 75) {
+        scholarshipPct = Math.max(scholarshipPct, 30);
+      }
+
+      const baseFee = course.totalFee > 0 ? 500 : 0; // enrollment fee (waived for free courses)
+      const discountedFee = Math.floor(baseFee * (1 - scholarshipPct / 100));
+      if (state.cash < discountedFee) return state;
+
+      return {
+        ...state,
+        cash: state.cash - discountedFee,
+        currentCourse: {
+          courseId: course.id,
+          courseName: course.name,
+          institution: course.institution,
+          totalDays: course.totalDays,
+          daysCompleted: 0,
+          dailyFee: Math.floor(course.dailyFee * (1 - scholarshipPct / 100)),
+          qualification: course.qualification,
+          studyPointsRequired: course.studyPointsRequired,
+          studyPointsEarned: 0,
+          scholarshipPct,
+        },
+        financeHistory: discountedFee > 0 ? [...state.financeHistory, {
+          day: state.day,
+          description: `Enrolled: ${course.name}${scholarshipPct > 0 ? ` (${scholarshipPct}% scholarship)` : ''}`,
+          amount: -discountedFee,
+          category: 'education' as const,
+        }] : state.financeHistory,
+      };
+    }
+
+    case 'START_BUSINESS': {
+      const def = BUSINESS_DEFINITIONS.find(b => b.type === action.payload);
+      if (!def) return state;
+      if (state.cash < def.capitalRequired + def.licenceCost + def.registrationCost) return state;
+
+      // Check location
+      if (!def.availableLocations.includes(state.location)) return state;
+
+      // Check qualifications
+      const hasQuals = def.requiredQualifications.every(q => state.qualifications.includes(q));
+      if (!hasQuals) return state;
+
+      const totalCost = def.capitalRequired + def.licenceCost + def.registrationCost;
+
+      const newBusiness = {
+        id: `biz_${Date.now()}`,
+        name: `${state.playerName}'s ${def.type}`,
+        type: def.type,
+        industry: def.industry,
+        location: state.location,
+        capital: def.capitalRequired,
+        dailyIncome: def.baseDailyIncome,
+        reputation: 50,
+        isLicensed: true,
+        isRegistered: true,
+        daysBad: 0,
+      };
+
+      return {
+        ...state,
+        cash: state.cash - totalCost,
+        businesses: [...state.businesses, newBusiness],
+        financeHistory: [...state.financeHistory, {
+          day: state.day,
+          description: `Started business: ${def.type}`,
+          amount: -totalCost,
+          category: 'business',
+        }],
+      };
+    }
+
+    case 'BUY_PROPERTY': {
+      const def = PROPERTY_DEFINITIONS[action.payload.defIndex];
+      if (!def) return state;
+
+      if (!def.availableLocations.includes(state.location)) return state;
+
+      const cost = action.payload.owned ? def.purchasePrice : def.rentMonthly;
+      if (state.cash < cost) return state;
+
+      const newProp = {
+        id: `prop_${Date.now()}`,
+        type: def.type,
+        location: state.location,
+        owned: action.payload.owned,
+        monthlyPayment: def.rentMonthly,
+        purchasePrice: def.purchasePrice,
+        storageSlots: def.storageSlots,
+        comfortBonus: def.comfortBonus,
+        isRentedOut: false,
+        tenantRent: 0,
+        furniture: [],
+      };
+
+      // If there was a previously rented primary residence, remove it (vacate that rental)
+      let updatedProperties = [...state.properties];
+      const prevPrimaryId = state.currentPropertyId;
+      if (prevPrimaryId) {
+        const prevProp = updatedProperties.find(p => p.id === prevPrimaryId);
+        if (prevProp && !prevProp.owned) {
+          // Was renting — remove it (player moves out)
+          updatedProperties = updatedProperties.filter(p => p.id !== prevPrimaryId);
+        }
+        // If owned — keep it in portfolio, just not primary residence anymore
+      }
+
+      return {
+        ...state,
+        cash: state.cash - cost,
+        properties: [...updatedProperties, newProp],
+        currentPropertyId: newProp.id,
+        financeHistory: [...state.financeHistory, {
+          day: state.day,
+          description: `${action.payload.owned ? 'Purchased' : 'Rented'}: ${def.type}`,
+          amount: -cost,
+          category: 'rent' as const,
+        }],
+      };
+    }
+
+    case 'BUY_VEHICLE': {
+      const def = VEHICLE_DEFINITIONS[action.payload];
+      if (!def) return state;
+      if (state.cash < def.price) return state;
+      if (def.requiredLicence && !state.qualifications.includes(def.requiredLicence)) return state;
+
+      const newVehicle = {
+        id: `veh_${Date.now()}`,
+        type: def.type,
+        condition: 90,
+        requiredLicence: def.requiredLicence,
+      };
+
+      return {
+        ...state,
+        cash: state.cash - def.price,
+        vehicles: [...state.vehicles, newVehicle],
+        financeHistory: [...state.financeHistory, {
+          day: state.day,
+          description: `Purchased vehicle: ${def.type}`,
+          amount: -def.price,
+          category: 'other',
+        }],
+      };
+    }
+
+    case 'PLANT_CROP': {
+      const hasFarm = state.properties.some(p => p.type === 'Farm') || state.location === 'Farm';
+      if (!hasFarm) return state;
+
+      const cropDef = CROP_DEFINITIONS[action.payload];
+      if (!cropDef) return state;
+
+      if (state.cash < cropDef.seedCost) return state;
+
+      // Must have an available (purchased) crop plot
+      const availablePlots = (state.cropPlotsOwned ?? 0) - state.cropPlots.length;
+      if (availablePlots <= 0) return state;
+
+      const newPlot = {
+        id: `plot_${Date.now()}`,
+        cropType: action.payload as import('@/types/game').CropType,
+        stage: 'seedling' as const,
+        daysPlanted: 0,
+        daysToHarvest: cropDef.daysToHarvest,
+        yield: cropDef.yieldKg,
+        needsFertilizer: true,
+        needsPesticide: false,
+        needsWater: true,
+        needsWeeding: false,
+        lastWeededDay: state.day,
+        hasFarmEvent: false,
+        farmEventType: null as import('@/types/game').FarmEventType,
+        fertilizerApplied: false,
+        yieldBoostPct: 0,
+      };
+
+      return {
+        ...state,
+        cash: state.cash - cropDef.seedCost,
+        cropPlots: [...state.cropPlots, newPlot],
+        financeHistory: [...state.financeHistory, {
+          day: state.day,
+          description: `Planted ${action.payload} seeds`,
+          amount: -cropDef.seedCost,
+          category: 'farm' as const,
+        }],
+      };
+    }
+
+    case 'HARVEST_CROP':
+      // Engine function now removes plot and returns it to owned-pool
+      return harvestCrop(state, action.payload);
+
+    case 'SELL_HARVEST':
+      return sellHarvest(state, action.payload.itemId, action.payload.quantity);
+
+    case 'BUY_LIVESTOCK': {
+      const hasFarm = state.properties.some(p => p.type === 'Farm') || state.location === 'Farm';
+      if (!hasFarm) return state;
+
+      const def = LIVESTOCK_DEFINITIONS[action.payload.type as keyof typeof LIVESTOCK_DEFINITIONS];
+      if (!def) return state;
+      if (state.cash < def.buyCost) return state;
+
+      const existing = state.livestock.find(l => l.type === action.payload.type);
+      let newLivestock = state.livestock;
+      if (existing) {
+        newLivestock = state.livestock.map(l => {
+          if (l.type !== action.payload.type) return l;
+          return action.payload.isMale ? { ...l, males: l.males + 1 } : { ...l, females: l.females + 1 };
+        });
+      } else {
+        newLivestock = [...state.livestock, {
+          type: action.payload.type as any,
+          males: action.payload.isMale ? 1 : 0,
+          females: action.payload.isMale ? 0 : 1,
+          animalFeedStockKg: 0,
+          dailyProduceBoostDays: 0,
+          pregnantFemales: 0,
+          pregnancyDaysLeft: 0,
+          sickCount: 0,
+          injuredCount: 0,
+          averageAge: 0,
+        }];
+      }
+
+      return {
+        ...state,
+        cash: state.cash - def.buyCost,
+        livestock: newLivestock,
+        financeHistory: [...state.financeHistory, {
+          day: state.day,
+          description: `Bought ${action.payload.isMale ? 'male' : 'female'} ${action.payload.type}`,
+          amount: -def.buyCost,
+          category: 'farm',
+        }],
+      };
+    }
+
+    case 'SLAUGHTER_LIVESTOCK':
+      return performSlaughterForMeat(state, action.payload.type, 1);
+
+    case 'SELL_LIVESTOCK': {
+      const def = LIVESTOCK_DEFINITIONS[action.payload.type as keyof typeof LIVESTOCK_DEFINITIONS];
+      if (!def) return state;
+
+      const group = state.livestock.find(l => l.type === action.payload.type);
+      if (!group) return state;
+      if (action.payload.isMale && group.males === 0) return state;
+      if (!action.payload.isMale && group.females === 0) return state;
+
+      const updatedLivestock = state.livestock
+        .map(l => {
+          if (l.type !== action.payload.type) return l;
+          return action.payload.isMale ? { ...l, males: l.males - 1 } : { ...l, females: l.females - 1 };
+        })
+        .filter(l => l.males + l.females > 0);
+
+      return {
+        ...state,
+        cash: state.cash + def.sellPrice,
+        livestock: updatedLivestock,
+        financeHistory: [...state.financeHistory, {
+          day: state.day,
+          description: `Sold ${action.payload.type}`,
+          amount: def.sellPrice,
+          category: 'farm',
+        }],
+      };
+    }
+
+    case 'BANK_DEPOSIT': {
+      if (state.cash < action.payload) return state;
+      return {
+        ...state,
+        cash: state.cash - action.payload,
+        bank: { ...state.bank, currentBalance: state.bank.currentBalance + action.payload },
+        financeHistory: [...state.financeHistory, {
+          day: state.day,
+          description: 'Bank deposit',
+          amount: -action.payload,
+          category: 'bank',
+        }],
+      };
+    }
+
+    case 'BANK_WITHDRAW': {
+      if (state.bank.currentBalance < action.payload) return state;
+      return {
+        ...state,
+        cash: state.cash + action.payload,
+        bank: { ...state.bank, currentBalance: state.bank.currentBalance - action.payload },
+        financeHistory: [...state.financeHistory, {
+          day: state.day,
+          description: 'Bank withdrawal',
+          amount: action.payload,
+          category: 'bank',
+        }],
+      };
+    }
+
+    case 'NOTICE_DEPOSIT': {
+      if (state.cash < action.payload) return state;
+      return {
+        ...state,
+        cash: state.cash - action.payload,
+        bank: {
+          ...state.bank,
+          noticeBalance: state.bank.noticeBalance + action.payload,
+          noticeLockUntilDay: state.day + 32,
+        },
+        financeHistory: [...state.financeHistory, {
+          day: state.day,
+          description: '32-Day Notice Account deposit',
+          amount: -action.payload,
+          category: 'bank',
+        }],
+      };
+    }
+
+    case 'NOTICE_WITHDRAW': {
+      if (state.bank.noticeLockUntilDay && state.day < state.bank.noticeLockUntilDay) return state;
+      const amount = state.bank.noticeBalance;
+      return {
+        ...state,
+        cash: state.cash + amount,
+        bank: { ...state.bank, noticeBalance: 0, noticeLockUntilDay: null },
+        financeHistory: [...state.financeHistory, {
+          day: state.day,
+          description: '32-Day Notice Account withdrawal',
+          amount,
+          category: 'bank',
+        }],
+      };
+    }
+
+    case 'APPLY_SASSA': {
+      // Can only apply if unemployed and low income
+      if (state.currentJob) return state;
+      const lastSassa = state.financeHistory.filter(f => f.description.includes('SASSA')).slice(-1)[0];
+      if (lastSassa && state.day - lastSassa.day < 30) return state;
+
+      const grantAmount = 350;
+      return {
+        ...state,
+        cash: state.cash + grantAmount,
+        financeHistory: [...state.financeHistory, {
+          day: state.day,
+          description: 'SASSA Social Grant',
+          amount: grantAmount,
+          category: 'government',
+        }],
+      };
+    }
+
+    case 'APPLY_LICENCE': {
+      const lic = LICENCE_DEFINITIONS.find(l => l.id === action.payload);
+      if (!lic) return state;
+      if (state.qualifications.includes(lic.qualification)) return state;
+      if (state.cash < lic.cost) return state;
+
+      return {
+        ...state,
+        cash: state.cash - lic.cost,
+        qualifications: [...state.qualifications, lic.qualification],
+        financeHistory: [...state.financeHistory, {
+          day: state.day,
+          description: `Licence obtained: ${lic.name}`,
+          amount: -lic.cost,
+          category: 'government',
+        }],
+      };
+    }
+
+    case 'RESOLVE_EVENT': {
+      const event = state.pendingEvents.find(e => e.id === action.payload.eventId);
+      if (!event) return state;
+
+      const choice = event.choices[action.payload.choiceIndex];
+      if (!choice) return state;
+
+      let s = {
+        ...state,
+        pendingEvents: state.pendingEvents.filter(e => e.id !== action.payload.eventId),
+        eventHistory: [...state.eventHistory, `Day ${state.day}: ${event.title} — ${choice.label}`],
+      };
+
+      // Apply effects
+      if (choice.effect.statsChange) {
+        const sc = choice.effect.statsChange;
+        s = {
+          ...s,
+          stats: {
+            health: Math.max(0, Math.min(100, s.stats.health + (sc.health ?? 0))),
+            hunger: Math.max(0, Math.min(100, s.stats.hunger + (sc.hunger ?? 0))),
+            energy: Math.max(0, Math.min(100, s.stats.energy + (sc.energy ?? 0))),
+            fitness: Math.max(0, Math.min(100, s.stats.fitness + (sc.fitness ?? 0))),
+            hygiene: Math.max(0, Math.min(100, s.stats.hygiene + (sc.hygiene ?? 0))),
+            stress: Math.max(0, Math.min(100, s.stats.stress + (sc.stress ?? 0))),
+            happiness: Math.max(0, Math.min(100, s.stats.happiness + (sc.happiness ?? 0))),
+            intelligence: Math.max(0, Math.min(100, s.stats.intelligence + (sc.intelligence ?? 0))),
+            education: Math.max(0, Math.min(100, s.stats.education + (sc.education ?? 0))),
+            reputation: Math.max(0, Math.min(100, s.stats.reputation + (sc.reputation ?? 0))),
+            discipline: Math.max(0, Math.min(100, s.stats.discipline + (sc.discipline ?? 0))),
+            endurance: Math.max(0, Math.min(100, s.stats.endurance + (sc.endurance ?? 0))),
+            drugEffectDaysLeft: s.stats.drugEffectDaysLeft ?? 0,
+            sickness: s.stats.sickness,
+            addictions: s.stats.addictions,
+          },
+        };
+      }
+      if (choice.effect.cashChange) {
+        // TEMP DEBUG — remove once cash-effect issue is confirmed fixed
+        console.log('[RESOLVE_EVENT] cashChange:', choice.effect.cashChange, 'before:', s.cash, 'after:', Math.max(0, s.cash + choice.effect.cashChange));
+        s = {
+          ...s,
+          cash: Math.max(0, s.cash + choice.effect.cashChange),
+          financeHistory: [...s.financeHistory, {
+            day: s.day,
+            description: `Event: ${event.title}`,
+            amount: choice.effect.cashChange,
+            category: 'other',
+          }],
+        };
+      }
+      if (choice.effect.imprisoned) {
+        const sentenceDays = 30 + Math.floor(Math.random() * 60);
+        s = {
+          ...s,
+          prison: {
+            ...s.prison,
+            imprisoned: true,
+            sentenceDays,
+            daysServed: 0,
+            crime: event.title.replace('⚠️ ', ''),
+          },
+        };
+      }
+      if (choice.effect.injured) {
+        s = {
+          ...s,
+          injury: {
+            ...s.injury,
+            injured: true,
+            daysInHospital: 3 + Math.floor(Math.random() * 5),
+            severity: 'serious',
+            description: `Injured during event: ${event.title}`,
+          },
+        };
+      }
+      if (choice.effect.enrollJob) {
+        s = enrollFormalJob(s, choice.effect.enrollJob);
+      }
+      if (choice.effect.changeLocation) {
+        s = { ...s, location: choice.effect.changeLocation };
+      }
+      if (choice.effect.reputationChange) {
+        s = {
+          ...s,
+          stats: { ...s.stats, reputation: Math.max(0, Math.min(100, s.stats.reputation + choice.effect.reputationChange)) },
+        };
+      }
+      if (choice.effect.inventoryAdd && choice.effect.inventoryAdd.length > 0) {
+        let inv = [...s.inventory];
+        for (const addItem of choice.effect.inventoryAdd) {
+          const existingIdx = inv.findIndex(i => i.id === addItem.id);
+          if (existingIdx >= 0) {
+            inv[existingIdx] = { ...inv[existingIdx], quantity: inv[existingIdx].quantity + addItem.quantity };
+          } else {
+            inv.push({ ...addItem });
+          }
+        }
+        s = { ...s, inventory: inv };
+      }
+      if (choice.effect.inventoryRemove && choice.effect.inventoryRemove.length > 0) {
+        let inv = [...s.inventory];
+        for (const remItem of choice.effect.inventoryRemove) {
+          inv = inv.map(i => i.id === remItem.id ? { ...i, quantity: i.quantity - remItem.quantity } : i)
+                   .filter(i => i.quantity > 0.001);
+        }
+        s = { ...s, inventory: inv };
+      }
+      if (choice.effect.wantedLevelChange) {
+        s = {
+          ...s,
+          crimeState: {
+            ...s.crimeState,
+            wantedLevel: Math.max(0, Math.min(100, (s.crimeState.wantedLevel || 0) + choice.effect.wantedLevelChange)),
+          },
+        };
+      }
+      if (choice.effect.businessReputationChange && s.businesses.length > 0) {
+        const idx = Math.floor(Math.random() * s.businesses.length);
+        s = {
+          ...s,
+          businesses: s.businesses.map((b, i) => i === idx
+            ? { ...b, reputation: Math.max(0, Math.min(100, b.reputation + choice.effect.businessReputationChange!)) }
+            : b),
+        };
+      }
+      if (choice.effect.vehicleConditionChange && s.vehicles.length > 0) {
+        const idx = Math.floor(Math.random() * s.vehicles.length);
+        s = {
+          ...s,
+          vehicles: s.vehicles.map((v, i) => i === idx
+            ? { ...v, condition: Math.max(0, Math.min(100, v.condition + choice.effect.vehicleConditionChange!)) }
+            : v),
+        };
+      }
+
+      // NPC meet event: accept adds NPC, reject sets cooldown
+      if (choice.npcData) {
+        const npcData = choice.npcData;
+        const nonPermanent = s.npcs.filter((n: any) => !n.isPermanent);
+        if (nonPermanent.length < 3) {
+          s = meetNewNPC(s, npcData);
+        }
+      }
+
+      return s;
+    }
+
+    case 'PRISON_LABOUR':
+      return performPrisonLabour(state);
+    case 'PRISON_STUDY':
+      return performPrisonStudy(state);
+    case 'PRISON_EXERCISE':
+      return performPrisonExercise(state);
+
+    case 'PRISON_SOCIALIZE': {
+      const gangChance = Math.random() > 0.7;
+      return {
+        ...state,
+        actionsUsedToday: [...state.actionsUsedToday, 'prison_socialize'],
+        prison: {
+          ...state.prison,
+          gangMember: state.prison.gangMember || gangChance,
+        },
+        stats: {
+          ...state.stats,
+          happiness: Math.min(100, state.stats.happiness + 8),
+          reputation: gangChance ? Math.max(0, state.stats.reputation - 5) : state.stats.reputation,
+        },
+      };
+    }
+
+    case 'INTERACT_NPC': {
+      const { npcId, action: npcAction } = action.payload;
+      return {
+        ...state,
+        npcs: state.npcs.map(npc => {
+          if (npc.id !== npcId) return npc;
+          const delta = npcAction === 'greet' ? 5 : npcAction === 'help' ? 10 : -15;
+          return {
+            ...npc,
+            relationshipLevel: Math.max(0, Math.min(100, npc.relationshipLevel + delta)),
+            friendship: npcAction === 'conflict' ? Math.max(0, npc.friendship - 10) : Math.min(100, npc.friendship + (npcAction === 'help' ? 8 : 3)),
+            conflict: npcAction === 'conflict' ? Math.min(100, npc.conflict + 15) : Math.max(0, npc.conflict - 2),
+            lastInteraction: state.day,
+          };
+        }),
+        stats: {
+          ...state.stats,
+          happiness: npcAction === 'conflict'
+            ? Math.max(0, state.stats.happiness - 5)
+            : Math.min(100, state.stats.happiness + 5),
+        },
+      };
+    }
+
+    case 'GIFT_NPC': {
+      const { npcId, itemId } = action.payload;
+      const npcIndex = state.npcs.findIndex(n => n.id === npcId);
+      const itemIndex = state.inventory.findIndex(i => i.id === itemId);
+      if (npcIndex === -1 || itemIndex === -1 || state.inventory[itemIndex].quantity < 1) return state;
+
+      const item = state.inventory[itemIndex];
+      const newInventory = [...state.inventory];
+      newInventory[itemIndex] = { ...item, quantity: item.quantity - 1 };
+
+      const valueBoost = item.sellPrice ? Math.floor(item.sellPrice / 10) : 5;
+      const finalBoost = Math.max(2, Math.min(15, valueBoost)); // min 2, max 15 rep per gift
+
+      const newNpcs = [...state.npcs];
+      newNpcs[npcIndex] = {
+        ...newNpcs[npcIndex],
+        relationshipLevel: Math.min(100, (newNpcs[npcIndex].relationshipLevel || 0) + finalBoost),
+        trust: Math.min(100, (newNpcs[npcIndex].trust || 0) + finalBoost),
+        conflict: Math.max(0, (newNpcs[npcIndex].conflict || 0) - finalBoost),
+      };
+
+      return {
+        ...state,
+        inventory: newInventory,
+        npcs: newNpcs,
+      };
+    }
+
+    case 'UPDATE_SETTINGS':
+      return { ...state, settings: { ...state.settings, ...action.payload } };
+
+    case 'TOGGLE_AUTO_CONSUME':
+      return { ...state, autoConsume: { ...state.autoConsume, enabled: !state.autoConsume.enabled } };
+
+    case 'CHANGE_LOCATION': {
+      const dest = action.payload as import('@/types/game').Location;
+      const hasVehicle = state.vehicles.length > 0;
+      const moveCost = hasVehicle ? 0 : 50;
+      if (!hasVehicle && state.cash < moveCost) return state;
+
+      const isDrama = Math.random() < 0.05; // 5% chance of travel drama
+      
+      let nextState = {
+        ...state,
+        cash: state.cash - moveCost,
+      };
+
+      if (isDrama) {
+        const dramas = [
+          { title: 'Taxi Strike', desc: 'The taxi association is protesting on the highway. Traffic is at a standstill.' },
+          { title: 'Vehicle Breakdown', desc: 'Your transport broke down on the side of the road.' },
+          { title: 'Roadblock', desc: 'Metro police are stopping vehicles for inspection.' }
+        ];
+        const drama = dramas[Math.floor(Math.random() * dramas.length)];
+        
+        nextState = {
+          ...nextState,
+          pendingEvents: [
+            ...nextState.pendingEvents,
+            {
+              id: `travel_drama_${state.day}_${Math.random()}`,
+              title: `Travel Drama: ${drama.title}`,
+              description: drama.desc,
+              type: 'social',
+              day: state.day,
+              choices: [
+                { label: 'Wait it out (Delays you, +5 Stress)', outcome: 'You eventually arrived safely.', effect: { statsChange: { stress: 5 }, changeLocation: dest } },
+                { label: 'Bribe/Pay alternative transport (R100)', outcome: 'You found another way around.', effect: { cashChange: -100, changeLocation: dest } },
+              ]
+            }
+          ]
+        };
+      } else {
+        nextState.location = dest;
+      }
+
+      return nextState;
+    }
+
+    case 'GET_JOB': {
+      const job = AVAILABLE_JOBS.find(j => j.id === action.payload);
+      if (!job) return state;
+      return { ...state, currentJob: job };
+    }
+
+    case 'QUIT_JOB':
+      return { ...state, currentJob: null };
+
+    case 'DISMISS_EVENT':
+      return {
+        ...state,
+        pendingEvents: state.pendingEvents.filter(e => e.id !== action.payload),
+        eventHistory: [...state.eventHistory, `Day ${state.day}: dismissed event`],
+      };
+
+    case 'RESET_GAME':
+      return createInitialGameState('', 'Male', 'unemployed_youth');
+
+    case 'SOCIALIZE_TYPED':
+      return performSocialize(state, action.payload);
+
+    case 'APPLY_ANIMAL_FEED':
+      return applyAnimalFeed(state, action.payload.livestockType, action.payload.feedKg);
+
+    case 'ENROLL_FORMAL_JOB': {
+      const chain = getJobChain(action.payload);
+      if (!chain) return state;
+      const firstRank = chain.ranks[0];
+      return {
+        ...state,
+        pendingEvents: [
+          ...state.pendingEvents,
+          {
+            id: `interview_${action.payload}_${state.day}`,
+            title: `Job Interview: ${firstRank.title}`,
+            description: `You have arrived for your interview at the ${chain.industry} department. The interviewer looks stern.`,
+            type: 'employment',
+            day: state.day,
+            choices: [
+              { label: 'Be honest and professional.', outcome: 'They liked your attitude! You got the job.', effect: { statsChange: { stress: 10 }, enrollJob: action.payload } },
+              { label: 'Exaggerate your experience.', outcome: 'They caught your lie. You were rejected.', effect: { statsChange: { stress: 20 } } },
+              { label: 'Demand a high salary immediately.', outcome: 'They laughed you out of the room.', effect: { statsChange: { reputation: -5 } } },
+            ]
+          }
+        ]
+      };
+    }
+
+    case 'RESIGN_FORMAL_JOB':
+      return resignFormalJob(state);
+
+    case 'PROMOTE_JOB': {
+      if (!state.formalEmployment) return state;
+      const chain = getJobChain(state.formalEmployment.chainId);
+      if (!chain) return state;
+      const nextIdx = state.formalEmployment.rankIndex + 1;
+      if (nextIdx >= chain.ranks.length) return state;
+      const nextRank = chain.ranks[nextIdx];
+      const jobTitle = nextRank.title as import('@/types/game').JobType;
+      return {
+        ...state,
+        formalEmployment: { ...state.formalEmployment, rankIndex: nextIdx, daysAtRank: 0 },
+        currentJob: state.currentJob ? {
+          ...state.currentJob,
+          title: jobTitle,
+          monthlySalary: nextRank.monthlySalary,
+          rankIndex: nextIdx,
+          daysAtRank: 0,
+        } : null,
+      };
+    }
+
+    case 'APPLY_FERTILIZER':
+      return applyFertilizer(state, action.payload);
+
+    case 'WEED_CROP':
+      return weedCropPlot(state, action.payload);
+
+    case 'CLEAR_FARM_EVENT':
+      return clearFarmEvent(state, action.payload);
+
+    case 'HIRE_FARM_LABORER':
+      return hireFarmLaborer(state);
+
+    case 'FIRE_FARM_LABORER':
+      return fireFarmLaborer(state, action.payload);
+
+    case 'RENT_OUT_PROPERTY': {
+      const { propertyId, monthlyRent } = action.payload;
+      const prop = state.properties.find(p => p.id === propertyId);
+      if (!prop || !prop.owned || prop.id === state.currentPropertyId) return state;
+      return {
+        ...state,
+        properties: state.properties.map(p =>
+          p.id === propertyId ? { ...p, isRentedOut: true, tenantRent: monthlyRent } : p
+        ),
+      };
+    }
+
+    case 'UNRENT_PROPERTY': {
+      return {
+        ...state,
+        properties: state.properties.map(p =>
+          p.id === action.payload ? { ...p, isRentedOut: false, tenantRent: 0 } : p
+        ),
+      };
+    }
+
+    case 'SET_PRIMARY_RESIDENCE': {
+      const prop = state.properties.find(p => p.id === action.payload);
+      if (!prop) return state;
+      // Cannot set primary to a property being rented out
+      if (prop.isRentedOut) return state;
+      // If previous primary was rented, remove it
+      const prevPrimary = state.properties.find(p => p.id === state.currentPropertyId);
+      let updatedProps = state.properties;
+      if (prevPrimary && !prevPrimary.owned) {
+        updatedProps = updatedProps.filter(p => p.id !== state.currentPropertyId);
+      }
+      return {
+        ...state,
+        properties: updatedProps,
+        currentPropertyId: action.payload,
+      };
+    }
+
+    case 'APPLY_SCHOLARSHIP': {
+      // Scholarship logic is applied inline in ENROLL_COURSE
+      return state;
+    }
+
+    case 'HOSPITAL_VISIT': {
+      const { cost, effects } = action.payload;
+      if (state.cash < cost) return state;
+      const statKeys = ['health', 'energy', 'stress', 'happiness', 'fitness'] as const;
+      type StatKey = typeof statKeys[number];
+      const updatedStats = { ...state.stats };
+      for (const k of statKeys) {
+        if (effects[k] !== undefined) {
+          updatedStats[k as StatKey] = Math.max(0, Math.min(100, updatedStats[k as StatKey] + (effects[k] as number)));
+        }
+      }
+      return {
+        ...state,
+        cash: state.cash - cost,
+        stats: updatedStats,
+        financeHistory: [...state.financeHistory, {
+          day: state.day,
+          description: 'Hospital / medical service',
+          amount: -cost,
+          category: 'other' as const,
+        }],
+      };
+    }
+
+    case 'PERFORM_AI':
+      return performArtificialInsemination(state, action.payload);
+
+    case 'SELL_LIVESTOCK_PRODUCE':
+      return sellLivestockProduce(state, action.payload.itemId, action.payload.quantity);
+
+    case 'SELL_CANNABIS_HARVEST':
+      return sellCannabisHarvest(state, action.payload);
+
+    case 'PERFORM_CRIME':
+      return performCrime(state, action.payload);
+
+    case 'BUY_WEAPON': {
+      const wDef = WEAPON_DEFINITIONS.find(w => w.id === action.payload);
+      if (!wDef || state.cash < wDef.price) return state;
+      const existing = state.inventory.find(i => i.id === wDef.id);
+      const newInv = existing
+        ? state.inventory.map(i => i.id === wDef.id ? { ...i, quantity: i.quantity + 1 } : i)
+        : [...state.inventory, {
+            id: wDef.id,
+            name: wDef.name,
+            category: 'weapon' as const,
+            quantity: 1,
+            unit: 'unit',
+            isFirearm: wDef.isFirearm,
+            crimeSuccessBonus: wDef.crimeSuccessBonus,
+          }];
+      let s = {
+        ...state,
+        cash: state.cash - wDef.price,
+        inventory: newInv,
+        financeHistory: [...state.financeHistory, {
+          day: state.day,
+          description: `Black market: ${wDef.name}`,
+          amount: -wDef.price,
+          category: 'shop' as const,
+        }],
+      };
+      return applyBlackMarketRisk(s, wDef.riskPercent, wDef.id, wDef.name);
+    }
+
+    case 'BUY_DRUG': {
+      const dDef = DRUG_DEFINITIONS.find(d => d.id === action.payload);
+      if (!dDef || state.cash < dDef.price) return state;
+      const existing = state.inventory.find(i => i.id === dDef.id);
+      const newInv = existing
+        ? state.inventory.map(i => i.id === dDef.id ? { ...i, quantity: i.quantity + 1 } : i)
+        : [...state.inventory, {
+            id: dDef.id,
+            name: dDef.name,
+            category: 'drug' as const,
+            quantity: 1,
+            unit: 'unit',
+            drugType: dDef.drugType,
+            sellPrice: dDef.sellPrice,
+          }];
+      let s = {
+        ...state,
+        cash: state.cash - dDef.price,
+        inventory: newInv,
+        financeHistory: [...state.financeHistory, {
+          day: state.day,
+          description: `Black market: ${dDef.name}`,
+          amount: -dDef.price,
+          category: 'shop' as const,
+        }],
+      };
+      return applyBlackMarketRisk(s, dDef.riskPercent, dDef.id, dDef.name);
+    }
+
+    case 'BUY_ALCOHOL': {
+      const aDef = ALCOHOL_DEFINITIONS.find(a => a.id === action.payload);
+      if (!aDef || state.cash < aDef.price) return state;
+      const existing = state.inventory.find(i => i.id === aDef.id);
+      const newInv = existing
+        ? state.inventory.map(i => i.id === aDef.id ? { ...i, quantity: i.quantity + 1 } : i)
+        : [...state.inventory, {
+            id: aDef.id,
+            name: aDef.name,
+            category: 'alcohol' as const,
+            quantity: 1,
+            unit: 'unit',
+            drugType: aDef.drugType,
+            sellPrice: aDef.sellPrice,
+          }];
+      let s = {
+        ...state,
+        cash: state.cash - aDef.price,
+        inventory: newInv,
+        financeHistory: [...state.financeHistory, {
+          day: state.day,
+          description: `Black market: ${aDef.name}`,
+          amount: -aDef.price,
+          category: 'shop' as const,
+        }],
+      };
+      return applyBlackMarketRisk(s, aDef.riskPercent, aDef.id, aDef.name);
+    }
+
+    case 'BUY_FAKE_ID': {
+      const fDef = FAKE_ID_DEFINITIONS.find(f => f.id === action.payload);
+      if (!fDef || state.cash < fDef.price) return state;
+      const existing = state.inventory.find(i => i.id === fDef.id);
+      const newInv = existing
+        ? state.inventory.map(i => i.id === fDef.id ? { ...i, quantity: i.quantity + 1 } : i)
+        : [...state.inventory, {
+            id: fDef.id,
+            name: fDef.name,
+            category: 'document' as const,
+            quantity: 1,
+            unit: 'unit',
+          }];
+      let s = {
+        ...state,
+        cash: state.cash - fDef.price,
+        inventory: newInv,
+        financeHistory: [...state.financeHistory, {
+          day: state.day,
+          description: `Black market: ${fDef.name}`,
+          amount: -fDef.price,
+          category: 'shop' as const,
+        }],
+      };
+      return applyBlackMarketRisk(s, fDef.riskPercent, fDef.id, fDef.name);
+    }
+
+    case 'BUY_STOLEN_GOODS': {
+      const gDef = STOLEN_GOODS_DEFINITIONS.find(g => g.id === action.payload);
+      if (!gDef || state.cash < gDef.price) return state;
+      const existing = state.inventory.find(i => i.id === gDef.id);
+      const newInv = existing
+        ? state.inventory.map(i => i.id === gDef.id ? { ...i, quantity: i.quantity + 1 } : i)
+        : [...state.inventory, {
+            id: gDef.id,
+            name: gDef.name,
+            category: 'stolen_goods' as const,
+            quantity: 1,
+            unit: 'unit',
+            sellPrice: gDef.sellPrice,
+          }];
+      let s = {
+        ...state,
+        cash: state.cash - gDef.price,
+        inventory: newInv,
+        financeHistory: [...state.financeHistory, {
+          day: state.day,
+          description: `Black market: ${gDef.name}`,
+          amount: -gDef.price,
+          category: 'shop' as const,
+        }],
+      };
+      return applyBlackMarketRisk(s, gDef.riskPercent, gDef.id, gDef.name);
+    }
+
+    case 'BUY_ILLEGAL_SEED': {
+      const seedDef = ILLEGAL_SEED_DEFINITIONS.find(sd => sd.id === action.payload);
+      if (!seedDef || state.cash < seedDef.price) return state;
+      const existing = state.inventory.find(i => i.id === seedDef.id);
+      const newInv = existing
+        ? state.inventory.map(i => i.id === seedDef.id ? { ...i, quantity: i.quantity + 1 } : i)
+        : [...state.inventory, {
+            id: seedDef.id,
+            name: seedDef.name,
+            category: 'illegal_seed' as const,
+            quantity: 1,
+            unit: 'unit',
+          }];
+      let s = {
+        ...state,
+        cash: state.cash - seedDef.price,
+        inventory: newInv,
+        financeHistory: [...state.financeHistory, {
+          day: state.day,
+          description: `Black market: ${seedDef.name}`,
+          amount: -seedDef.price,
+          category: 'shop' as const,
+        }],
+      };
+      return applyBlackMarketRisk(s, seedDef.riskPercent, seedDef.id, seedDef.name);
+    }
+
+    case 'DRINK_ALCOHOL':
+      return performDrinkAlcohol(state, action.payload);
+
+    case 'MEET_NPC':
+      if (!action.payload) return state;
+      return meetNewNPC(state, action.payload);
+
+    case 'ADVANCE_ROMANCE':
+      return advanceRomance(state, action.payload);
+
+    case 'NPC_BENEFIT':
+      return applyNPCBenefit(state, action.payload.npcId, action.payload.benefit);
+
+    case 'REMOVE_NPC':
+      return removeNPC(state, action.payload);
+
+    case 'FLIRT_NPC':
+      return flirtNPC(state, action.payload);
+
+    case 'TAKE_DRUG':
+      return performTakeDrug(state, action.payload);
+
+    case 'TREAT_LIVESTOCK':
+      return treatLivestock(state, action.payload.livestockType, action.payload.count);
+
+    case 'SELL_PROPERTY': {
+      const prop = state.properties.find(p => p.id === action.payload);
+      if (!prop) return state;
+      // Resale value: 60% of purchase/build cost
+      const resaleValue = Math.floor((prop.owned ? prop.purchasePrice ?? prop.monthlyPayment * 12 : 0) * 0.6);
+      const newProperties = state.properties.filter(p => p.id !== action.payload);
+      const newPropId = newProperties.length > 0 ? newProperties[0].id : null;
+      return {
+        ...state,
+        cash: state.cash + resaleValue,
+        properties: newProperties,
+        currentPropertyId: state.currentPropertyId === action.payload ? newPropId : state.currentPropertyId,
+        financeHistory: [...state.financeHistory, {
+          day: state.day, description: `Sold property: ${prop.type}`, amount: resaleValue, category: 'property' as const,
+        }],
+      };
+    }
+
+    case 'SELL_VEHICLE': {
+      const veh = state.vehicles[action.payload];
+      if (!veh) return state;
+      const vDef = VEHICLE_DEFINITIONS.find(v => v.type === veh.type);
+      const resaleValue = Math.floor((vDef?.price ?? 5000) * (veh.condition / 100) * 0.65);
+      const newVehicles = state.vehicles.filter((_, i) => i !== action.payload);
+      return {
+        ...state,
+        cash: state.cash + resaleValue,
+        vehicles: newVehicles,
+        financeHistory: [...state.financeHistory, {
+          day: state.day, description: `Sold vehicle: ${veh.type}`, amount: resaleValue, category: 'vehicle' as const,
+        }],
+      };
+    }
+
+    case 'RESTOCK_BUSINESS': {
+      // Pull stock from player inventory — no cash cost for items already owned
+      const { businessId, itemId, quantity } = action.payload;
+      const invItem = state.inventory.find(i => i.id === itemId);
+      if (!invItem || invItem.quantity < quantity) return state;
+
+      // Deduct from inventory
+      const newInventory = state.inventory
+        .map(i => i.id === itemId ? { ...i, quantity: i.quantity - quantity } : i)
+        .filter(i => i.quantity > 0);
+
+      // Add to business stock
+      const newBusinesses = state.businesses.map(b => {
+        if (b.id !== businessId) return b;
+        const currentStock = b.stock ?? [];
+        const existing = currentStock.find(s => s.id === itemId);
+        const unitSellPrice = invItem.sellPrice ?? 0;
+        const restockCost = 0;
+        const newStock = existing
+          ? currentStock.map(s => s.id === itemId ? { ...s, quantity: s.quantity + quantity } : s)
+          : [...currentStock, { id: itemId, name: invItem.name, quantity, unitSellPrice, restockCost }];
+        return { ...b, stock: newStock };
+      });
+
+      return { ...state, inventory: newInventory, businesses: newBusinesses };
+    }
+
+    case 'DISMISS_DAY_SUMMARY':
+      return { ...state, showDaySummary: false };
+
+    case 'TAKE_LOAN': {
+      const loan = action.payload;
+      return {
+        ...state,
+        bank: {
+          ...state.bank,
+          currentBalance: state.bank.currentBalance + loan.amount,
+          loans: [...state.bank.loans, { ...loan, remaining: loan.amount, paymentsMissed: 0 }],
+        },
+        financeHistory: [...state.financeHistory, {
+          day: state.day,
+          description: `Loan Disbursement (${loan.id})`,
+          amount: loan.amount,
+          category: 'bank'
+        }]
+      };
+    }
+
+    case 'PAY_LOAN': {
+      const { id, amount } = action.payload;
+      const loan = state.bank.loans.find(l => l.id === id);
+      if (!loan || state.bank.currentBalance < amount) return state;
+      
+      const newRemaining = Math.max(0, loan.remaining - amount);
+      const isPaidOff = newRemaining === 0;
+
+      return {
+        ...state,
+        bank: {
+          ...state.bank,
+          currentBalance: state.bank.currentBalance - amount,
+          loans: isPaidOff ? state.bank.loans.filter(l => l.id !== id) : state.bank.loans.map(l => l.id === id ? { ...l, remaining: newRemaining } : l),
+          creditScore: state.bank.creditScore + (isPaidOff ? 50 : 2), // Boost score for payoff or payment
+        },
+        financeHistory: [...state.financeHistory, {
+          day: state.day,
+          description: `Loan Payment (${id})`,
+          amount: -amount,
+          category: 'bank'
+        }]
+      };
+    }
+
+    case 'HARVEST_ALL_CROPS':
+      return harvestAllCrops(state);
+
+    case 'HEAL_ALL_LIVESTOCK':
+      return healAllLivestock(state, action.payload);
+
+    case 'SELL_LIVESTOCK_BULK':
+      return sellLivestockBulk(
+        state,
+        action.payload.type,
+        action.payload.count,
+        action.payload.isMale,
+        action.payload.sellExcessOnly,
+      );
+
+    case 'BUY_CROP_PLOT': {
+      const CROP_PLOT_COST = 2500;
+      if (state.cash < CROP_PLOT_COST) return state;
+      return {
+        ...state,
+        cash: state.cash - CROP_PLOT_COST,
+        cropPlotsOwned: (state.cropPlotsOwned ?? 0) + 1,
+        financeHistory: [...state.financeHistory, {
+          day: state.day,
+          description: 'Purchased crop plot',
+          amount: -CROP_PLOT_COST,
+          category: 'farm' as const,
+        }],
+      };
+    }
+
+    case 'SUBMIT_BUG_REPORT': {
+      const report = {
+        id: `bug_${Date.now()}`,
+        day: state.day,
+        description: action.payload.description,
+        category: action.payload.category,
+        gameVersion: '1.0.0',
+        timestamp: Date.now(),
+      };
+      return {
+        ...state,
+        bugReports: [...(state.bugReports ?? []), report],
+      };
+    }
+
+    case 'PLANT_ORCHARD': {
+      const { treeType, cost } = action.payload;
+      if (state.cash < cost) return state;
+      const def = ORCHARD_DEFINITIONS[treeType];
+      if (!def) return state;
+      const newPlot = {
+        id: `orchard_${Date.now()}`,
+        treeType: treeType as import('@/types/game').FruitTreeType,
+        ageDays: 0,
+        lastHarvestDay: 0,
+        harvestReadyDay: state.day + def.matureAfterDays + def.harvestIntervalDays,
+        yield: def.yieldKg,
+      };
+      return {
+        ...state,
+        cash: state.cash - cost,
+        orchardPlots: [...(state.orchardPlots ?? []), newPlot],
+        financeHistory: [...state.financeHistory, {
+          day: state.day, description: `Planted ${treeType}`, amount: -cost, category: 'farm' as const,
+        }],
+      };
+    }
+
+    case 'HARVEST_ORCHARD':
+      return performHarvestOrchard(state, action.payload);
+
+    case 'BUY_ORCHARD_PLOT': {
+      const PLOT_COST = 5000;
+      if (state.cash < PLOT_COST) return state;
+      // Orchard plots are tracked as count; add an empty placeholder
+      return {
+        ...state,
+        cash: state.cash - PLOT_COST,
+        financeHistory: [...state.financeHistory, {
+          day: state.day, description: 'Bought orchard plot', amount: -PLOT_COST, category: 'farm' as const,
+        }],
+      };
+    }
+
+    case 'SELL_INVENTORY_ITEM': {
+      const { itemId, quantity } = action.payload;
+      const invItem = state.inventory.find(i => i.id === itemId);
+      if (!invItem || invItem.quantity < quantity) return state;
+      const sellPrice = (invItem.sellPrice ?? 0) * quantity;
+      const newInv = state.inventory
+        .map(i => i.id === itemId ? { ...i, quantity: i.quantity - quantity } : i)
+        .filter(i => i.quantity > 0);
+      return {
+        ...state,
+        cash: state.cash + sellPrice,
+        inventory: newInv,
+        financeHistory: [...state.financeHistory, {
+          day: state.day,
+          description: `Sold ${quantity}x ${invItem.name}`,
+          amount: sellPrice,
+          category: 'farm' as const,
+        }],
+      };
+    }
+
+    case 'GRANT_BONUS_ACTION':
+      return performGrantBonusAction(state);
+
+    case 'CLAIM_AD_REWARD': {
+      const rewardType = action.payload as AdRewardType;
+      const adRewards = state.adRewards ?? { lastClaimedDay: {}, bonusActionsToday: 0 };
+      const lastDay = adRewards.lastClaimedDay[rewardType] ?? -1;
+      if (lastDay === state.day) return state; // already claimed today
+
+      let newState = { ...state, adRewards: { ...adRewards, lastClaimedDay: { ...adRewards.lastClaimedDay, [rewardType]: state.day } } };
+
+      if (rewardType === 'cash_early' && state.day <= 90) {
+        newState = { ...newState, cash: newState.cash + 250 };
+      } else if (rewardType === 'cash_mid' && state.day >= 91) {
+        newState = { ...newState, cash: newState.cash + 1000 };
+      } else if (rewardType === 'cash_late' && state.day >= 181) {
+        newState = { ...newState, cash: newState.cash + 3500 };
+      } else if (rewardType === 'edu_boost' && state.currentCourse) {
+        const boosted = { ...state.currentCourse, studyPointsEarned: state.currentCourse.studyPointsEarned + 5 };
+        newState = { ...newState, currentCourse: boosted };
+      } else if (rewardType === 'farm_boost') {
+        const boostedPlots = state.cropPlots.map(p =>
+          p.stage === 'growing' ? { ...p, daysPlanted: p.daysPlanted + 3 } : p
+        );
+        newState = { ...newState, cropPlots: boostedPlots };
+      } else if (rewardType === 'biz_boost' && state.businesses.length > 0) {
+        const boostedBiz = state.businesses.map(b => ({
+          ...b,
+          incomeBoostPct: 5,
+          incomeBoostUntilDay: state.day + 1,
+        }));
+        newState = { ...newState, businesses: boostedBiz };
+      }
+
+      return newState;
+    }
+
+    case 'ADVANCE_DAY_RESET_BONUS_ACTIONS': {
+      return {
+        ...state,
+        maxActionsPerDay: 4,
+        adRewards: {
+          ...(state.adRewards ?? { lastClaimedDay: {}, bonusActionsToday: 0 }),
+          bonusActionsToday: 0,
+        },
+      };
+    }
+
+    case 'REGISTER_BUSINESS': {
+      // Mark a business name as formally registered — reduces tax risk, enables logistics
+      const alreadyRegistered = (state.registeredBusinessNames ?? []).includes(action.payload);
+      if (alreadyRegistered) return state;
+      const REGISTRATION_FEE = 175;
+      if (state.cash < REGISTRATION_FEE) return state;
+      return {
+        ...state,
+        cash: state.cash - REGISTRATION_FEE,
+        registeredBusinessNames: [...(state.registeredBusinessNames ?? []), action.payload],
+        financeHistory: [...state.financeHistory, {
+          day: state.day, description: `Business registration: ${action.payload}`, amount: -REGISTRATION_FEE, category: 'business' as const,
+        }],
+      };
+    }
+
+    default:
+      return state;
+  }
+}
+
+// ─── Context ──────────────────────────────────────────────────────────────────
+type SaveSlotData = { playerName: string; day: number; location: string; cash?: number; inventoryCount?: number; propertyCount?: number } | null;
+
+type GameContextType = {
+  state: GameState;
+  hasSave: boolean;
+  dispatch: (action: GameAction) => void;
+  saveGame: (slot?: number) => Promise<void>;
+  loadGame: (slot?: number) => Promise<boolean>;
+  deleteSave: (slot?: number) => Promise<void>;
+  hasSaveInSlot: (slot: number) => boolean;
+  getSaveSlotMeta: (slot: number) => SaveSlotData;
+  // Work limit helpers
+  canWorkToday: boolean;
+  workActionsToday: number;
+  maxWorkActionsToday: number;
+  // Formal employment helpers
+  currentRankTitle: string | null;
+  currentSalary: number | null;
+  jobChains: typeof JOB_CHAINS;
+};
+
+const GameContext = createContext<GameContextType>({
+  state: createInitialGameState('', 'Male', 'unemployed_youth'),
+  hasSave: false,
+  dispatch: () => {},
+  saveGame: async () => {},
+  loadGame: async () => false,
+  deleteSave: async () => {},
+  hasSaveInSlot: () => false,
+  getSaveSlotMeta: () => null,
+  canWorkToday: true,
+  workActionsToday: 0,
+  maxWorkActionsToday: 2,
+  currentRankTitle: null,
+  currentSalary: null,
+  jobChains: JOB_CHAINS,
+});
+
+// ─── Provider ─────────────────────────────────────────────────────────────────
+const emptyState = createInitialGameState('', 'Male', 'unemployed_youth');
+emptyState.gameStarted = false;
+
+export function GameProvider({ children }: { children: React.ReactNode }) {
+  const [state, dispatch] = useReducer(gameReducer, emptyState);
+  const [hasSave, setHasSave] = useReducerState(false);
+  const [saveSlots, setSaveSlots] = useReducerState<(GameState | null)[]>([null, null, null]);
+
+  useEffect(() => {
+    initSaves();
+  }, []);
+
+  async function initSaves() {
+    try {
+      const autoSaveInfo = await FileSystem.getInfoAsync(SAVE_FILE);
+      const autoSave = autoSaveInfo.exists ? await FileSystem.readAsStringAsync(SAVE_FILE) : null;
+      setHasSave(!!autoSave);
+
+      if (autoSave) {
+        try {
+          const parsed: GameState = JSON.parse(autoSave);
+          dispatch({ type: 'LOAD_GAME', payload: parsed });
+        } catch {}
+      }
+
+      const slots: (GameState | null)[] = [];
+      for (const key of SLOT_FILES) {
+        const info = await FileSystem.getInfoAsync(key);
+        const data = info.exists ? await FileSystem.readAsStringAsync(key) : null;
+        slots.push(data ? JSON.parse(data) : null);
+      }
+      setSaveSlots(slots);
+    } catch {}
+  }
+
+  const saveGame = useCallback(async (slot?: number) => {
+    try {
+      const data = JSON.stringify(state);
+      if (slot !== undefined) {
+        await FileSystem.writeAsStringAsync(SLOT_FILES[slot], data);
+        const newSlots = [...saveSlots];
+        newSlots[slot] = state;
+        setSaveSlots(newSlots);
+      } else {
+        await FileSystem.writeAsStringAsync(SAVE_FILE, data);
+        setHasSave(true);
+      }
+    } catch {}
+  }, [state]);
+
+  const loadGame = useCallback(async (slot?: number): Promise<boolean> => {
+    try {
+      const key = slot !== undefined ? SLOT_FILES[slot] : SAVE_FILE;
+      const info = await FileSystem.getInfoAsync(key);
+      const data = info.exists ? await FileSystem.readAsStringAsync(key) : null;
+      if (!data) return false;
+      const parsed: GameState = JSON.parse(data);
+      dispatch({ type: 'LOAD_GAME', payload: parsed });
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const deleteSave = useCallback(async (slot?: number) => {
+    try {
+      if (slot !== undefined) {
+        await FileSystem.deleteAsync(SLOT_FILES[slot], { idempotent: true });
+        const newSlots = [...saveSlots];
+        newSlots[slot] = null;
+        setSaveSlots(newSlots);
+      } else {
+        await FileSystem.deleteAsync(SAVE_FILE, { idempotent: true });
+        setHasSave(false);
+      }
+    } catch {}
+  }, [saveSlots]);
+
+  function hasSaveInSlot(slot: number) {
+    return !!saveSlots[slot];
+  }
+
+  function getSaveSlotMeta(slot: number) {
+    const s = saveSlots[slot];
+    if (!s) return null;
+    return {
+      playerName: s.playerName,
+      day: s.day,
+      location: s.location,
+      cash: s.cash,
+      inventoryCount: (s.inventory ?? []).length,
+      propertyCount: (s.properties ?? []).filter(p => p.owned).length,
+    };
+  }
+
+  // Auto-save every day change
+  useEffect(() => {
+    if (state.gameStarted) {
+      FileSystem.writeAsStringAsync(SAVE_FILE, JSON.stringify(state)).catch(() => {});
+      setHasSave(true);
+    }
+  }, [state.day]);
+
+  return (
+    <GameContext.Provider value={{
+      state, hasSave, dispatch, saveGame, loadGame, deleteSave, hasSaveInSlot, getSaveSlotMeta,
+      canWorkToday: canWork(state),
+      workActionsToday: getWorkActionsUsedToday(state),
+      maxWorkActionsToday: getMaxWorkActionsPerDay(state),
+      currentRankTitle: state.formalEmployment ? getCurrentRankTitle(state.formalEmployment) : null,
+      currentSalary: state.formalEmployment ? getCurrentSalary(state.formalEmployment) : null,
+      jobChains: JOB_CHAINS,
+    }}>
+      {children}
+    </GameContext.Provider>
+  );
+}
+
+// Simple state hook replacement for tuple syntax
+function useReducerState<T>(initial: T): [T, (val: T) => void] {
+  const [val, setVal] = useReducer((_: T, next: T) => next, initial);
+  return [val, setVal];
+}
+
+export const useGame = () => useContext(GameContext);
