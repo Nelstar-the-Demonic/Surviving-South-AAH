@@ -973,6 +973,17 @@ export const BUSINESS_DEFINITIONS = [
     availableLocations: ['Township', 'City', 'Informal Settlement'] as Location[],
   },
   {
+    type: 'Shebeen' as const,
+    industry: 'Crime' as Industry,
+    capitalRequired: 12000,
+    licenceCost: 0,
+    registrationCost: 0,
+    baseDailyIncome: 1100,
+    description: '🍺 Unlicensed home tavern selling homebrew & moonshine. Lower risk than drugs. Requires alcohol inventory.',
+    requiredQualifications: [] as Qualification[],
+    availableLocations: ['Informal Settlement', 'Village', 'Farm', 'Township'] as Location[],
+  },
+  {
     type: 'Butchery' as const,
     industry: 'Retail' as Industry,
     capitalRequired: 28000,

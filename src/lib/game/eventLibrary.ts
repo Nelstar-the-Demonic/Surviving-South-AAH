@@ -609,25 +609,38 @@ const FARMING_EVENTS: EventTemplate[] = [
   },
   {
     id: 'farm_market_demand', category: 'farming', type: 'farming', weight: 2, cooldownDays: 15,
-    condition: hasFarm,
-    build: (ctx) => ({
-      title: '📈 High Market Demand',
-      description: `Local markets are paying well above normal for ${randomCropName(ctx)} right now.`,
-      choices: [
-        { label: 'Sell existing stock at the higher price', outcome: 'Good timing pays off.', effect: { cashChange: randInt(100, 400) } },
-      ],
-    }),
+    condition: (ctx) => ctx.state.inventory.some(i => i.category === 'harvest' && i.quantity > 0),
+    build: (ctx) => {
+      const stock = ctx.state.inventory.filter(i => i.category === 'harvest' && i.quantity > 0);
+      const item = pick(stock);
+      const sellQty = Math.round(Math.min(item.quantity, randInt(5, 20)) * 10) / 10;
+      const total = Math.round(sellQty * (item.sellPrice ?? 10) * 1.3);
+      return {
+        title: '📈 High Market Demand',
+        description: `Local markets are paying well above normal for ${item.name} right now.`,
+        choices: [
+          { label: `Sell ${sellQty}${item.unit ?? 'kg'} at the higher price`, outcome: 'Good timing pays off.', effect: { cashChange: total, inventoryRemove: [{ id: item.id, quantity: sellQty }] } },
+          { label: 'Hold onto your stock', outcome: 'You wait, hoping for an even better price later.', effect: {} },
+        ],
+      };
+    },
   },
   {
     id: 'orchard_bumper_season', category: 'farming', type: 'farming', weight: 2, cooldownDays: 25,
-    condition: hasOrchard,
-    build: () => ({
-      title: '🍎 Bumper Fruit Season',
-      description: 'Your fruit trees are producing more than usual this season.',
-      choices: [
-        { label: 'Harvest and sell the surplus', outcome: 'A welcome bonus.', effect: { cashChange: randInt(150, 450), statsChange: { happiness: 5 } } },
-      ],
-    }),
+    condition: (ctx) => hasOrchard(ctx) && ctx.state.inventory.some(i => i.category === 'harvest' && i.quantity > 0),
+    build: (ctx) => {
+      const stock = ctx.state.inventory.filter(i => i.category === 'harvest' && i.quantity > 0);
+      const item = pick(stock);
+      const sellQty = Math.round(Math.min(item.quantity, randInt(3, 15)) * 10) / 10;
+      const total = Math.round(sellQty * (item.sellPrice ?? 10) * 1.2);
+      return {
+        title: '🍎 Bumper Fruit Season',
+        description: 'Your fruit trees are producing more than usual this season.',
+        choices: [
+          { label: `Sell the surplus (${sellQty}${item.unit ?? 'kg'})`, outcome: 'A welcome bonus.', effect: { cashChange: total, statsChange: { happiness: 5 }, inventoryRemove: [{ id: item.id, quantity: sellQty }] } },
+        ],
+      };
+    },
   },
 ];
 
@@ -649,15 +662,18 @@ const LIVESTOCK_EVENTS: EventTemplate[] = [
   },
   {
     id: 'livestock_good_sale', category: 'livestock', type: 'livestock', weight: 2, cooldownDays: 15,
-    condition: hasLivestock,
-    build: (ctx) => ({
-      title: '💰 Buyer Interested',
-      description: `A trader is interested in buying some of your ${randomLivestockType(ctx)} at a fair price.`,
-      choices: [
-        { label: 'Negotiate a sale', outcome: 'A profitable exchange.', effect: { cashChange: randInt(200, 600) } },
-        { label: 'Not selling right now', outcome: 'You hold onto your stock.', effect: {} },
-      ],
-    }),
+    condition: (ctx) => ctx.state.livestock.some(g => g.males + g.females > 0),
+    build: (ctx) => {
+      const group = pick(ctx.state.livestock.filter(g => g.males + g.females > 0));
+      return {
+        title: '💰 Buyer Interested',
+        description: `A trader is interested in buying some of your ${group.type} at a fair price.`,
+        choices: [
+          { label: 'Negotiate a sale', outcome: 'A profitable exchange.', effect: { cashChange: randInt(200, 600) } },
+          { label: 'Not selling right now', outcome: 'You hold onto your stock.', effect: {} },
+        ],
+      };
+    },
   },
   {
     id: 'livestock_disease_scare', category: 'livestock', type: 'livestock', weight: 2, cooldownDays: 20,

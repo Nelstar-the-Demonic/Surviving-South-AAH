@@ -590,6 +590,7 @@ function processBusinessIncome(state: GameState): GameState {
   // Inventory stock checks
   const hasDrugStock = s.inventory.some(i => i.category === 'drug' && i.quantity > 0);
   const hasCannabisStock = s.inventory.some(i => i.id === 'harvest_cannabis' || (i.category === 'drug' && i.id === 'cannabis') && i.quantity > 0);
+  const hasAlcoholStock = s.inventory.some(i => i.category === 'alcohol' && i.quantity > 0);
   const hasMeatStock = s.inventory.some(i => i.category === 'meat' && i.quantity > 0);
   const hasMilkStock = s.inventory.some(i => i.id === 'farm_milk' || i.id === 'livestock_milk' && i.quantity > 0);
 
@@ -605,6 +606,7 @@ function processBusinessIncome(state: GameState): GameState {
     // Stock-gated income — no stock = no income
     if (biz.type === 'Drug Business' && !hasDrugStock) { income = 0; }
     if (biz.type === 'Cannabis Business' && !hasCannabisStock) { income = 0; }
+    if (biz.type === 'Shebeen' && !hasAlcoholStock) { income = 0; }
     if (biz.type === 'Butchery' && !hasMeatStock) { income = 0; }
     if (biz.type === 'Dairy' && !hasMilkStock) { income = 0; }
     if (biz.type === 'Taxi Business' && taxiCount === 0) { income = 0; }
