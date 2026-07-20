@@ -167,7 +167,8 @@ export type BusinessType =
   | 'Construction Company' | 'Farm Supply Store'
   | 'Tavern' | 'Nightclub' | 'Liquor Store'
   | 'Cannabis Business' | 'Drug Business'
-  | 'Butchery' | 'Dairy' | 'Logistics Company';
+  | 'Butchery' | 'Dairy' | 'Logistics Company'
+  | 'Shebeen';
 
 export interface Business {
   id: string;
