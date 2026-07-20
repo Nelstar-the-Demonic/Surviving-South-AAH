@@ -8,6 +8,7 @@ import { AD_REWARD_DEFS, canClaimAdReward } from '@/lib/game/adRewards';
 import type { AdRewardType } from '@/types/game';
 import { StatusBar } from 'expo-status-bar';
 import { hapticLight, hapticMedium, hapticSuccess, hapticError } from '@/lib/haptics';
+import { useLocationTheme } from '@/lib/locationTheme';
 
 // ── Design tokens ───────────────────────────────────────────────
 const C = {
@@ -50,6 +51,7 @@ const MENU_ITEMS = [
 ];
 
 function StatPill({ icon, value, label }: { icon: string; value: number; label: string }) {
+  const locTheme = useLocationTheme();
   const color = value >= 70 ? C.green : value >= 35 ? C.gold : C.red;
   return (
     <View style={{ flex: 1, alignItems: 'center' }}>
@@ -58,7 +60,7 @@ function StatPill({ icon, value, label }: { icon: string; value: number; label: 
         <Text style={{ color: C.textSub, fontSize: 10, fontWeight: '600' }}>{label}</Text>
         <Text style={{ color, fontSize: 11, fontWeight: '800' }}>{value}</Text>
       </View>
-      <View style={{ width: '100%', height: 5, backgroundColor: C.surface, borderRadius: 3, overflow: 'hidden' }}>
+      <View style={{ width: '100%', height: 5, backgroundColor: locTheme.surface, borderRadius: 3, overflow: 'hidden' }}>
         <View style={{ width: `${value}%`, height: 5, backgroundColor: color, borderRadius: 3 }} />
       </View>
     </View>
@@ -72,8 +74,9 @@ function MenuTile({ item, isLocked, isPrison, onPress }: {
   onPress: () => void;
 }) {
   const isCrime = item.label === 'Crime';
+  const locTheme = useLocationTheme();
   const accentColor = isPrison ? C.red : isCrime ? '#FF6B6B' : C.gold;
-  const bgColor = isPrison ? '#1A0808' : isCrime ? '#150808' : isLocked ? '#0D0D12' : C.surface;
+  const bgColor = isPrison ? '#1A0808' : isCrime ? '#150808' : isLocked ? '#0D0D12' : locTheme.surface;
 
   return (
     <Pressable
@@ -82,9 +85,9 @@ function MenuTile({ item, isLocked, isPrison, onPress }: {
         width: '48%',
         backgroundColor: bgColor,
         borderWidth: 1,
-        borderColor: isPrison ? C.red : isCrime ? '#3A1515' : isLocked ? C.border : '#252535',
+        borderColor: isPrison ? C.red : isCrime ? '#3A1515' : isLocked ? locTheme.border : '#252535',
         borderTopWidth: isPrison || isCrime ? 2 : 1,
-        borderTopColor: isPrison ? C.red : isCrime ? '#FF6B6B' : isLocked ? C.border : '#252535',
+        borderTopColor: isPrison ? C.red : isCrime ? '#FF6B6B' : isLocked ? locTheme.border : '#252535',
         borderRadius: 10,
         padding: 14,
         marginBottom: 10,
@@ -110,6 +113,7 @@ function MenuTile({ item, isLocked, isPrison, onPress }: {
 export default function MainGame() {
   const router = useRouter();
   const { state, dispatch } = useGame();
+  const locTheme = useLocationTheme();
   const [showEventModal, setShowEventModal] = useState(false);
   const [showBonusRewards, setShowBonusRewards] = useState(false);
 
@@ -151,15 +155,15 @@ export default function MainGame() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: C.bg }}>
+    <View style={{ flex: 1, backgroundColor: locTheme.bg }}>
       <StatusBar style="light" />
       <DaySummaryModal />
 
       {/* ── TOP HUD ── */}
       <View style={{
-        backgroundColor: C.surface,
+        backgroundColor: locTheme.surface,
         paddingTop: 48, paddingHorizontal: 16, paddingBottom: 14,
-        borderBottomWidth: 1, borderBottomColor: C.border,
+        borderBottomWidth: 1, borderBottomColor: locTheme.border,
       }}>
         {/* Player row */}
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
@@ -239,7 +243,7 @@ export default function MainGame() {
         {/* ── EVENT MODAL ── */}
         <Modal visible={showEventModal && hasPendingEvent} transparent animationType="fade" onRequestClose={() => setShowEventModal(false)}>
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.85)' }}>
-            <View style={{ margin: 16, padding: 20, width: '90%', backgroundColor: C.surface, borderWidth: 2, borderColor: C.gold, borderRadius: 12 }}>
+            <View style={{ margin: 16, padding: 20, width: '90%', backgroundColor: locTheme.surface, borderWidth: 2, borderColor: C.gold, borderRadius: 12 }}>
               {activeEvent && (<>
                 <Text style={{ color: C.gold, fontSize: 11, fontWeight: '700', letterSpacing: 1.2, marginBottom: 4 }}>
                   📢 {activeEvent.type.toUpperCase()}
@@ -278,7 +282,7 @@ export default function MainGame() {
                   </Text>
                 )}
               </>)}
-              <Pressable onPress={() => setShowEventModal(false)} style={{ marginTop: 12, padding: 10, alignItems: 'center', borderWidth: 1, borderColor: C.border, borderRadius: 6 }}>
+              <Pressable onPress={() => setShowEventModal(false)} style={{ marginTop: 12, padding: 10, alignItems: 'center', borderWidth: 1, borderColor: locTheme.border, borderRadius: 6 }}>
                 <Text style={{ color: C.textSub, fontSize: 12 }}>Close</Text>
               </Pressable>
             </View>
@@ -286,7 +290,7 @@ export default function MainGame() {
         </Modal>
 
         {/* ── DAILY ACTIONS CARD ── */}
-        <View style={{ backgroundColor: C.surface, borderWidth: 1, borderColor: C.gold, borderTopWidth: 3, borderTopColor: C.gold, borderRadius: 10, padding: 14, marginBottom: 12 }}>
+        <View style={{ backgroundColor: locTheme.surface, borderWidth: 1, borderColor: C.gold, borderTopWidth: 3, borderTopColor: C.gold, borderRadius: 10, padding: 14, marginBottom: 12 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
             <Text style={{ color: C.textPrimary, fontWeight: '800', fontSize: 14 }}>⚡ Daily Actions</Text>
             <Text style={{ color: actionsLeft === 0 ? C.red : C.gold, fontSize: 13, fontWeight: '700' }}>
@@ -299,7 +303,7 @@ export default function MainGame() {
             {Array.from({ length: maxActionsPerDay }).map((_, i) => {
               const used = i < (maxActionsPerDay - actionsLeft);
               return (
-                <View key={i} style={{ flex: 1, height: 8, borderRadius: 4, backgroundColor: used ? C.gold : C.border }} />
+                <View key={i} style={{ flex: 1, height: 8, borderRadius: 4, backgroundColor: used ? C.gold : locTheme.border }} />
               );
             })}
           </View>
@@ -312,7 +316,7 @@ export default function MainGame() {
                 <View key={a} style={{
                   paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20,
                   backgroundColor: done ? '#1C1800' : C.surfaceAlt,
-                  borderWidth: 1, borderColor: done ? C.goldDim : C.border,
+                  borderWidth: 1, borderColor: done ? C.goldDim : locTheme.border,
                 }}>
                   <Text style={{ color: done ? C.gold : C.textMuted, fontSize: 11, fontWeight: done ? '700' : '400', textTransform: 'capitalize' }}>
                     {done ? '✓ ' : ''}{a}
@@ -330,14 +334,14 @@ export default function MainGame() {
 
           {/* Course progress */}
           {currentCourse && (
-            <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: C.border }}>
+            <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: locTheme.border }}>
               <Text style={{ color: C.textSub, fontSize: 11, marginBottom: 3 }}>📚 STUDYING</Text>
               <Text style={{ color: C.textPrimary, fontSize: 13, fontWeight: '700' }}>{currentCourse.courseName}</Text>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
                 <Text style={{ color: C.textSub, fontSize: 11 }}>Day {currentCourse.daysCompleted}/{currentCourse.totalDays}</Text>
                 <Text style={{ color: C.textSub, fontSize: 11 }}>{Math.round((currentCourse.studyPointsEarned / currentCourse.studyPointsRequired) * 100)}%</Text>
               </View>
-              <View style={{ height: 5, backgroundColor: C.border, borderRadius: 3, marginTop: 4, overflow: 'hidden' }}>
+              <View style={{ height: 5, backgroundColor: locTheme.border, borderRadius: 3, marginTop: 4, overflow: 'hidden' }}>
                 <View style={{ height: 5, borderRadius: 3, width: `${Math.min(100, Math.round((currentCourse.studyPointsEarned / currentCourse.studyPointsRequired) * 100))}%`, backgroundColor: C.blue }} />
               </View>
             </View>
@@ -345,7 +349,7 @@ export default function MainGame() {
 
           {/* Businesses */}
           {businesses.length > 0 && (
-            <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: C.border }}>
+            <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: locTheme.border }}>
               <Text style={{ color: C.textSub, fontSize: 11, marginBottom: 4 }}>🏪 BUSINESSES</Text>
               {businesses.slice(0, 2).map(b => (
                 <View key={b.id} style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 2 }}>
@@ -374,7 +378,7 @@ export default function MainGame() {
         </Text>
 
         {/* ── BONUS REWARDS (Collapsible) ── */}
-        <View style={{ backgroundColor: C.surface, borderWidth: 1, borderColor: '#2A2014', borderRadius: 10, marginBottom: 16, overflow: 'hidden' }}>
+        <View style={{ backgroundColor: locTheme.surface, borderWidth: 1, borderColor: '#2A2014', borderRadius: 10, marginBottom: 16, overflow: 'hidden' }}>
           <Pressable 
             onPress={() => setShowBonusRewards(!showBonusRewards)}
             style={{ padding: 14, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
@@ -399,7 +403,7 @@ export default function MainGame() {
                     style={{
                       flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12,
                       backgroundColor: canClaim ? '#15120A' : C.surfaceAlt,
-                      borderWidth: 1, borderColor: canClaim ? '#3A2800' : C.border,
+                      borderWidth: 1, borderColor: canClaim ? '#3A2800' : locTheme.border,
                       borderRadius: 8, opacity: canClaim ? 1 : 0.5,
                     }}
                   >

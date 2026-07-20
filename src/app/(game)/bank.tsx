@@ -279,8 +279,8 @@ export default function Bank() {
                 <View className="flex-row justify-between items-start">
                   <View>
                     <Text className="text-muted-foreground text-xs">CREDIT SCORE</Text>
-                    <Text style={{ color: state.creditScore >= 700 ? '#4CAF50' : state.creditScore >= 500 ? '#FFB81C' : '#E32636' }} className="text-3xl font-bold">
-                      {state.creditScore}
+                    <Text style={{ color: state.bank.creditScore >= 700 ? '#4CAF50' : state.bank.creditScore >= 500 ? '#FFB81C' : '#E32636' }} className="text-3xl font-bold">
+                      {state.bank.creditScore}
                     </Text>
                   </View>
                   <Text className="text-4xl">💳</Text>
@@ -291,10 +291,10 @@ export default function Bank() {
               </InfoCard>
 
               {/* Active Loans */}
-              {state.loans.length > 0 && (
+              {state.bank.loans.length > 0 && (
                 <View className="mb-4">
                   <Text className="text-xs font-bold text-muted-foreground mb-2">ACTIVE LOANS</Text>
-                  {state.loans.map(loan => (
+                  {state.bank.loans.map(loan => (
                     <View key={loan.id} className="p-4 mb-2" style={{ borderWidth: 1, borderColor: '#333', backgroundColor: '#0D0D0D' }}>
                       <View className="flex-row justify-between mb-2">
                         <Text className="font-bold" style={{ color: '#eee' }}>{loan.id.split('_')[0].toUpperCase()} LOAN</Text>
@@ -340,7 +340,7 @@ export default function Bank() {
                   { id: 'personal', title: 'Personal Loan', amount: 15000, interest: 0.002, minScore: 500 },
                   { id: 'business', title: 'Business Loan', amount: 100000, interest: 0.001, minScore: 650 },
                 ].map(offer => {
-                  const eligible = state.creditScore >= offer.minScore;
+                  const eligible = state.bank.creditScore >= offer.minScore;
                   return (
                     <View key={offer.id} className="p-4 mb-2" style={{ borderWidth: 1, borderColor: eligible ? '#333' : '#111', backgroundColor: eligible ? '#0D0D0D' : '#050505' }}>
                       <View className="flex-row justify-between mb-2">

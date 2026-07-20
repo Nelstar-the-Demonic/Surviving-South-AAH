@@ -5,6 +5,7 @@ import { useGame } from '@/store/gameContext';
 import { GameHeader } from '@/components/game/GameHeader';
 import { CROP_DEFINITIONS, LIVESTOCK_DEFINITIONS, ORCHARD_DEFINITIONS } from '@/lib/game/gameData';
 import { formatMoney, getSASeason } from '@/lib/game/gameEngine';
+import { useLocationTheme } from '@/lib/locationTheme';
 
 const STAGE_COLORS: Record<string, string> = {
   seedling: '#8BC34A',
@@ -15,6 +16,7 @@ const STAGE_COLORS: Record<string, string> = {
 export default function Farming() {
   const router = useRouter();
   const { state, dispatch } = useGame();
+  const locTheme = useLocationTheme();
   const [feedback, setFeedback] = useState<string | null>(null);
   const [tab, setTab] = useState<'crops' | 'orchard' | 'livestock' | 'labor' | 'harvest' | 'produce'>('crops');
   const [sellQty, setSellQty] = useState<Record<string, string>>({});
@@ -178,7 +180,7 @@ export default function Farming() {
 
   if (!hasFarm) {
     return (
-      <View className="flex-1 bg-background">
+      <View style={{ flex: 1, backgroundColor: locTheme.bg }}>
         <GameHeader title="Farming" />
         <View className="flex-1 items-center justify-center px-6">
           <Text className="text-6xl mb-4">🌾</Text>
@@ -199,7 +201,7 @@ export default function Farming() {
   }
 
   return (
-    <View className="flex-1 bg-background">
+    <View style={{ flex: 1, backgroundColor: locTheme.bg }}>
       <GameHeader title="Farming" subtitle="Crops, livestock & produce management" extraStats={[
         { label: 'Plots', value: String(cropPlots.length) },
         { label: 'Livestock', value: String(livestock.reduce((s, g) => s + g.males + g.females, 0)) },
