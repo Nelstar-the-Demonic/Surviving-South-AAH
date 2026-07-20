@@ -1,35 +1,32 @@
+import { useState } from 'react';
 import { View, Text, ScrollView, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useGame } from '@/store/gameContext';
 import { GameButton } from '@/components/game/GameButton';
 
+interface ResolvedResult {
+  icon: string;
+  borderColor: string;
+  eventTitle: string;
+  choiceLabel: string;
+  outcome: string;
+  wasLast: boolean;
+}
+
 export default function EventModal() {
   const router = useRouter();
   const { state, dispatch } = useGame();
+  const [resolved, setResolved] = useState<ResolvedResult | null>(null);
 
   if (!state?.gameStarted) return null;
   const { pendingEvents } = state;
 
-  if (pendingEvents.length === 0) {
+  if (!resolved && pendingEvents.length === 0) {
     router.replace('/(game)/main');
     return null;
   }
 
   const event = pendingEvents[0];
-
-  function choose(choiceIndex: number) {
-    dispatch({ type: 'RESOLVE_EVENT', payload: { eventId: event.id, choiceIndex } });
-    if (pendingEvents.length <= 1) {
-      router.back();
-    }
-  }
-
-  function dismiss() {
-    dispatch({ type: 'DISMISS_EVENT', payload: event.id });
-    if (pendingEvents.length <= 1) {
-      router.back();
-    }
-  }
 
   const iconMap: Record<string, string> = {
     family: '👨‍👩‍👧',
@@ -74,7 +71,6 @@ export default function EventModal() {
     protest: '🔥',
     meeting: '🗳️',
   };
-  const icon = iconMap[event.type] ?? '📢';
 
   const typeColors: Record<string, string> = {
     opportunity: '#4CAF50',
@@ -119,6 +115,81 @@ export default function EventModal() {
     protest: '#E32636',
     meeting: '#795548',
   };
+
+  function choose(choiceIndex: number) {
+    const choice = event.choices[choiceIndex];
+    const wasLast = pendingEvents.length <= 1;
+    const icon = iconMap[event.type] ?? '📢';
+    const borderColor = typeColors[event.type] ?? '#FFB81C';
+
+    dispatch({ type: 'RESOLVE_EVENT', payload: { eventId: event.id, choiceIndex } });
+
+    if (!choice.outcome) {
+      // Nothing to reveal (e.g. simple "OK" acknowledgements) — skip straight through
+      if (wasLast) router.back();
+      return;
+    }
+
+    setResolved({
+      icon, borderColor,
+      eventTitle: event.title,
+      choiceLabel: choice.label,
+      outcome: choice.outcome,
+      wasLast,
+    });
+  }
+
+  function continueAfterResult() {
+    const wasLast = resolved?.wasLast;
+    setResolved(null);
+    if (wasLast) router.back();
+  }
+
+  function dismiss() {
+    dispatch({ type: 'DISMISS_EVENT', payload: event.id });
+    if (pendingEvents.length <= 1) {
+      router.back();
+    }
+  }
+
+  // ─── Result reveal screen (shown AFTER a choice is made) ──────────────────
+  if (resolved) {
+    return (
+      <View className="flex-1 bg-background">
+        <View
+          className="pt-14 pb-4 px-4"
+          style={{ borderBottomWidth: 2, borderBottomColor: resolved.borderColor }}
+        >
+          <Text className="text-muted-foreground text-xs tracking-wider mb-1">RESULT</Text>
+        </View>
+        <ScrollView contentInsetAdjustmentBehavior="automatic">
+          <View className="px-4 pt-6 pb-10">
+            <View
+              className="p-6 mb-6"
+              style={{ backgroundColor: '#0D0D0D', borderWidth: 2, borderColor: resolved.borderColor }}
+            >
+              <Text className="text-5xl text-center mb-4">{resolved.icon}</Text>
+              <Text className="text-muted-foreground text-xs text-center mb-2">{resolved.eventTitle}</Text>
+              <Text className="text-foreground text-sm text-center mb-4 italic" style={{ color: resolved.borderColor }}>
+                "{resolved.choiceLabel}"
+              </Text>
+              <Text className="text-foreground text-base text-center leading-6">
+                {resolved.outcome}
+              </Text>
+            </View>
+            <GameButton
+              label="CONTINUE"
+              onPress={continueAfterResult}
+              variant="primary"
+              size="lg"
+            />
+          </View>
+        </ScrollView>
+      </View>
+    );
+  }
+
+  const icon = iconMap[event.type] ?? '📢';
   const borderColor = typeColors[event.type] ?? '#FFB81C';
 
   return (
@@ -158,7 +229,7 @@ export default function EventModal() {
             </Text>
           </View>
 
-          {/* Choices */}
+          {/* Choices — label only. Outcomes are revealed after choosing, not before. */}
           {event.choices.length > 0 ? (
             <>
               <Text className="text-muted-foreground text-xs mb-3 tracking-wider">YOUR RESPONSE</Text>
@@ -173,10 +244,7 @@ export default function EventModal() {
                     backgroundColor: '#0D0A00',
                   }}
                 >
-                  <Text className="text-foreground font-bold text-sm mb-1">{choice.label}</Text>
-                  {choice.outcome && (
-                    <Text className="text-muted-foreground text-xs">{choice.outcome}</Text>
-                  )}
+                  <Text className="text-foreground font-bold text-sm">{choice.label}</Text>
                 </Pressable>
               ))}
             </>

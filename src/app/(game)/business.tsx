@@ -19,6 +19,7 @@ export default function Business() {
   // Stock availability checks for income gating display
   const hasDrugStock = inventory.some(i => i.category === 'drug' && i.quantity > 0);
   const hasCannabisStock = inventory.some(i => (i.id === 'harvest_cannabis' || i.id === 'cannabis') && i.quantity > 0);
+  const hasAlcoholStock = inventory.some(i => i.category === 'alcohol' && i.quantity > 0);
   const hasMeatStock = inventory.some(i => i.category === 'meat' && i.quantity > 0);
   const hasMilkStock = inventory.some(i => (i.id === 'farm_cow_milk' || i.id === 'farm_goat_milk' || i.id === 'livestock_milk') && i.quantity > 0);
   const taxiCount = state.vehicles.filter(v => v.type === 'Minibus Taxi' && v.condition > 20).length;
@@ -27,6 +28,7 @@ export default function Business() {
   function getStockStatus(biz: typeof businesses[0]): { ok: boolean; msg: string } {
     if (biz.type === 'Drug Business')      return hasDrugStock   ? { ok: true, msg: '✅ Drug stock available' }           : { ok: false, msg: '⛔ No drugs in inventory — no income' };
     if (biz.type === 'Cannabis Business')  return hasCannabisStock ? { ok: true, msg: '✅ Cannabis stock available' }     : { ok: false, msg: '⛔ No cannabis in inventory — no income' };
+    if (biz.type === 'Shebeen')            return hasAlcoholStock ? { ok: true, msg: '✅ Alcohol stock available' }      : { ok: false, msg: '⛔ No alcohol in inventory — no income' };
     if (biz.type === 'Butchery')           return hasMeatStock   ? { ok: true, msg: '✅ Meat stock available' }           : { ok: false, msg: '⛔ No meat in inventory — no income' };
     if (biz.type === 'Dairy')              return hasMilkStock   ? { ok: true, msg: '✅ Milk stock available' }           : { ok: false, msg: '⛔ No milk in inventory — no income' };
     if (biz.type === 'Taxi Business')      return taxiCount > 0  ? { ok: true, msg: `✅ ${taxiCount} taxi(s) in fleet` } : { ok: false, msg: '⛔ No Minibus Taxis — no income' };
@@ -37,6 +39,7 @@ export default function Business() {
   function getRestockItems(biz: typeof businesses[0]) {
     if (biz.type === 'Drug Business')     return inventory.filter(i => i.category === 'drug' && i.quantity > 0);
     if (biz.type === 'Cannabis Business') return inventory.filter(i => (i.id === 'harvest_cannabis' || i.id === 'cannabis') && i.quantity > 0);
+    if (biz.type === 'Shebeen')           return inventory.filter(i => i.category === 'alcohol' && i.quantity > 0);
     if (biz.type === 'Butchery')          return inventory.filter(i => i.category === 'meat' && i.quantity > 0);
     if (biz.type === 'Dairy')             return inventory.filter(i => (i.id === 'farm_cow_milk' || i.id === 'farm_goat_milk') && i.quantity > 0);
     return [];
@@ -168,7 +171,7 @@ export default function Business() {
                     <Text className="text-muted-foreground text-xs mb-2">Reputation affects daily income</Text>
 
                     {/* Stock status & restock panel — all stock-gated business types */}
-                    {['Drug Business', 'Cannabis Business', 'Butchery', 'Dairy'].includes(biz.type) && (() => {
+                    {['Drug Business', 'Cannabis Business', 'Shebeen', 'Butchery', 'Dairy'].includes(biz.type) && (() => {
                       const stockStatus = getStockStatus(biz);
                       const restockItems = getRestockItems(biz);
                       return (
@@ -206,6 +209,7 @@ export default function Business() {
                             <Text className="text-xs" style={{ color: '#666' }}>
                               {biz.type === 'Drug Business' && 'Buy drugs from Shop → Black Market, then move to business.'}
                               {biz.type === 'Cannabis Business' && 'Harvest cannabis from Farming, then move to business.'}
+                              {biz.type === 'Shebeen' && 'Buy alcohol from Shop → Black Market, then move to business.'}
                               {biz.type === 'Butchery' && 'Slaughter livestock in Farming to get meat.'}
                               {biz.type === 'Dairy' && 'Collect milk from cattle/goats in Farming.'}
                             </Text>
