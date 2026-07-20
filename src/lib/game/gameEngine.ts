@@ -7,8 +7,10 @@ export function clamp(val: number, min = 0, max = 100): number {
   return Math.max(min, Math.min(max, val));
 }
 
-export function updateStat(stats: PlayerStats, key: keyof PlayerStats, delta: number): PlayerStats {
-  return { ...stats, [key]: clamp(stats[key] + delta) };
+type NumericStatKey = Exclude<keyof PlayerStats, 'sickness' | 'addictions'>;
+
+export function updateStat(stats: PlayerStats, key: NumericStatKey, delta: number): PlayerStats {
+  return { ...stats, [key]: clamp((stats[key] as number) + delta) };
 }
 
 // ─── Daily Tick ────────────────────────────────────────────────────────────────
@@ -2420,7 +2422,7 @@ export function sellCannabisHarvest(state: GameState, qty: number): GameState {
 
   // Risk of getting caught: 35% base
   const caught = Math.random() < 0.35;
-  const crimeState = state.crimeState ?? { cannabisSalesCaught: 0, totalCrimes: 0, crimeRecords: [] };
+  const crimeState = state.crimeState ?? { cannabisSalesCaught: 0, totalCrimes: 0, crimeRecords: [], wantedLevel: 0 };
   const newCaughtCount = caught ? crimeState.cannabisSalesCaught + 1 : crimeState.cannabisSalesCaught;
 
   const fine = caught ? 1000 + Math.floor(Math.random() * 3000) : 0;
