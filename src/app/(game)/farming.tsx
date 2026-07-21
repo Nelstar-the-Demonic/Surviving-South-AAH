@@ -44,12 +44,16 @@ export default function Farming() {
   const cannabisHarvest = inventory.filter(i => i.name === 'Cannabis' && i.quantity > 0);
 
   // ── Actions ──
-  function plantCrop(cropType: string) {
+  function plantCrop(cropType: string, seedItemId?: string) {
     const def = CROP_DEFINITIONS[cropType as keyof typeof CROP_DEFINITIONS];
     if (!def) return;
-    if (cash < def.seedCost) { showFeedback(`⚠️ Need ${formatMoney(def.seedCost)} for seeds.`); return; }
-    dispatch({ type: 'PLANT_CROP', payload: cropType });
-    showFeedback(`✅ Planted ${cropType}. Ready in ${def.daysToHarvest} days.`);
+    if (!seedItemId && cash < def.seedCost) { showFeedback(`⚠️ Need ${formatMoney(def.seedCost)} for seeds.`); return; }
+    dispatch({ type: 'PLANT_CROP', payload: { cropType, seedItemId } });
+    if (seedItemId) {
+      showFeedback(`✅ Planted special seeds. Faster growth, bigger yield.`);
+    } else {
+      showFeedback(`✅ Planted ${cropType}. Ready in ${def.daysToHarvest} days.`);
+    }
   }
 
   function harvestCrop(plotId: string) {
@@ -372,6 +376,32 @@ export default function Farming() {
                       </Text>
                     </Pressable>
                   ))}
+
+                  {/* Special black-market seeds — faster growth, bigger yield, consumed from inventory */}
+                  {inventory.filter(i => i.category === 'illegal_seed' && i.quantity > 0 && i.linkedCropType).map(seed => {
+                    const def = CROP_DEFINITIONS[seed.linkedCropType as keyof typeof CROP_DEFINITIONS];
+                    if (!def) return null;
+                    const boostedDays = Math.max(1, Math.round(def.daysToHarvest * (seed.daysToHarvestMultiplier ?? 1)));
+                    const boostedYield = Math.round(def.yieldKg * (seed.yieldMultiplier ?? 1) * 10) / 10;
+                    return (
+                      <Pressable
+                        key={seed.id}
+                        onPress={() => plantCrop(seed.linkedCropType!, seed.id)}
+                        className="mb-2 p-3 flex-row items-center justify-between"
+                        style={{ borderWidth: 1.5, borderColor: '#F5C842', backgroundColor: '#1A1400' }}
+                      >
+                        <View style={{ flex: 1 }}>
+                          <Text className="text-foreground font-bold text-sm">⭐ {seed.name} ({seed.quantity} in stock)</Text>
+                          <Text className="text-muted-foreground text-xs">
+                            {boostedDays} days (faster) · {boostedYield}kg yield (bigger) · {def.sellPricePerKg}/kg
+                          </Text>
+                        </View>
+                        <Text className="font-bold text-sm" style={{ color: '#F5C842' }}>
+                          USE SEED
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
                 </>
               ) : (
                 <View className="p-3 items-center" style={{ borderWidth: 1, borderColor: '#333' }}>
@@ -487,6 +517,7 @@ export default function Farming() {
                     const def = LIVESTOCK_DEFINITIONS[group.type as keyof typeof LIVESTOCK_DEFINITIONS];
                     const needsPregnancy = def?.needsPregnancy ?? false;
                     const isPregnant = (group.pregnantFemales ?? 0) > 0;
+                    const eggStock = inventory.find(i => i.id === 'farm_eggs')?.quantity ?? 0;
                     const daysLeft = group.pregnancyDaysLeft ?? 0;
                     return (
                       <View key={group.type} className="mb-3 p-4" style={{ borderWidth: 1, borderColor: '#333', backgroundColor: '#0D0D0D' }}>
@@ -525,9 +556,30 @@ export default function Farming() {
                         )}
                         {group.type === 'Chicken' && (
                           <Text className="text-xs mb-1" style={{ color: '#FFB81C' }}>
-                            🥚 Produces 3–5 eggs/hen/day. 25% chance per egg = new chick.
+                            🥚 Each hen lays 1–3 eggs/day. Eggs must be set to incubate to hatch — 7 days, ~1 in 5 chicks hatch male.
                             {group.dailyProduceBoostDays > 0 ? ' Feed active (+40%).' : ''}
                           </Text>
+                        )}
+                        {group.type === 'Chicken' && (group.incubatingEggs ?? 0) > 0 && group.incubationStartDay !== null && (
+                          <View className="mb-2 p-2" style={{ borderWidth: 1, borderColor: '#F5C842', backgroundColor: '#1A1400' }}>
+                            <Text className="text-xs font-bold" style={{ color: '#F5C842' }}>
+                              🐣 {group.incubatingEggs} egg{group.incubatingEggs !== 1 ? 's' : ''} incubating — hatch day {group.incubationStartDay + 7} (day {state.day} now)
+                            </Text>
+                          </View>
+                        )}
+                        {group.type === 'Chicken' && eggStock > 0 && (
+                          <Pressable
+                            onPress={() => {
+                              dispatch({ type: 'INCUBATE_EGGS', payload: { livestockType: 'Chicken', quantity: eggStock } });
+                              showFeedback(`🐣 Set ${eggStock} eggs to incubate. Hatches in 7 days.`);
+                            }}
+                            className="mb-2 py-1.5 px-3 self-start"
+                            style={{ borderWidth: 1, borderColor: '#F5C842' }}
+                          >
+                            <Text className="text-xs font-bold" style={{ color: '#F5C842' }}>
+                              🐣 INCUBATE ALL EGGS ({eggStock} in stock)
+                            </Text>
+                          </Pressable>
                         )}
                         {needsPregnancy && (
                           <Text className="text-xs mb-2" style={{ color: isPregnant ? '#4CAF50' : '#FF9800' }}>

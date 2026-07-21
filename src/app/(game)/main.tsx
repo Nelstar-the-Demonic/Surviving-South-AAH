@@ -114,7 +114,6 @@ export default function MainGame() {
   const router = useRouter();
   const { state, dispatch } = useGame();
   const locTheme = useLocationTheme();
-  const [showEventModal, setShowEventModal] = useState(false);
   const [showBonusRewards, setShowBonusRewards] = useState(false);
 
   useEffect(() => {
@@ -123,9 +122,7 @@ export default function MainGame() {
 
   if (!state?.gameStarted) return null;
 
-  const { stats, playerName, location, day, cash, bank, prison, injury, currentCourse, pendingEvents, businesses, actionsUsedToday, maxActionsPerDay } = state;
-  const hasPendingEvent = pendingEvents.length > 0;
-  const activeEvent = hasPendingEvent ? pendingEvents[0] : null;
+  const { stats, playerName, location, day, cash, bank, prison, injury, currentCourse, businesses, actionsUsedToday, maxActionsPerDay } = state;
   const actionsLeft = Math.max(0, maxActionsPerDay - actionsUsedToday.length);
 
   function claimAdReward(type: AdRewardType) {
@@ -224,70 +221,9 @@ export default function MainGame() {
           </View>
         )}
 
-        {/* ── PENDING EVENT BANNER ── */}
-        {hasPendingEvent && (
-          <Pressable
-            onPress={() => setShowEventModal(true)}
-            style={{ marginBottom: 12, padding: 14, backgroundColor: '#15120A', borderWidth: 2, borderColor: C.gold, borderRadius: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
-          >
-            <View>
-              <Text style={{ color: C.gold, fontWeight: '800', fontSize: 13 }}>
-                📢 {pendingEvents.length} EVENT{pendingEvents.length > 1 ? 'S' : ''} PENDING
-              </Text>
-              <Text style={{ color: C.textSub, fontSize: 11, marginTop: 2 }}>{activeEvent?.title ?? 'Tap to respond'}</Text>
-            </View>
-            <Text style={{ color: C.gold, fontSize: 22 }}>›</Text>
-          </Pressable>
-        )}
+        {/* Pending events are now handled globally by GlobalEventOverlay (mounted in _layout.tsx),
+            which pops up centered on whatever screen the player is on — not just here. */}
 
-        {/* ── EVENT MODAL ── */}
-        <Modal visible={showEventModal && hasPendingEvent} transparent animationType="fade" onRequestClose={() => setShowEventModal(false)}>
-          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.85)' }}>
-            <View style={{ margin: 16, padding: 20, width: '90%', backgroundColor: locTheme.surface, borderWidth: 2, borderColor: C.gold, borderRadius: 12 }}>
-              {activeEvent && (<>
-                <Text style={{ color: C.gold, fontSize: 11, fontWeight: '700', letterSpacing: 1.2, marginBottom: 4 }}>
-                  📢 {activeEvent.type.toUpperCase()}
-                </Text>
-                <Text style={{ color: C.textPrimary, fontWeight: '800', fontSize: 17, marginBottom: 8 }}>{activeEvent.title}</Text>
-                <Text style={{ color: C.textSub, fontSize: 13, lineHeight: 20, marginBottom: 16 }}>{activeEvent.description}</Text>
-                {activeEvent.choices.length > 0 ? (
-                  activeEvent.choices.map((choice, i) => (
-                    <Pressable
-                      key={i}
-                      onPress={() => {
-                        dispatch({ type: 'RESOLVE_EVENT', payload: { eventId: activeEvent.id, choiceIndex: i } });
-                        if (pendingEvents.length <= 1) setShowEventModal(false);
-                        hapticMedium();
-                      }}
-                      style={{ marginBottom: 8, padding: 12, borderWidth: 1, borderColor: C.gold, backgroundColor: '#15120A', borderRadius: 8 }}
-                    >
-                      <Text style={{ color: C.textPrimary, fontWeight: '700', fontSize: 13 }}>{choice.label}</Text>
-                      {choice.outcome ? <Text style={{ color: C.textSub, fontSize: 11, marginTop: 3 }}>{choice.outcome}</Text> : null}
-                    </Pressable>
-                  ))
-                ) : (
-                  <Pressable
-                    onPress={() => {
-                      dispatch({ type: 'DISMISS_EVENT', payload: activeEvent.id });
-                      if (pendingEvents.length <= 1) setShowEventModal(false);
-                    }}
-                    style={{ padding: 12, alignItems: 'center', backgroundColor: C.gold, borderRadius: 8 }}
-                  >
-                    <Text style={{ color: C.bg, fontWeight: '800', fontSize: 14 }}>ACKNOWLEDGE</Text>
-                  </Pressable>
-                )}
-                {pendingEvents.length > 1 && (
-                  <Text style={{ color: C.textMuted, fontSize: 11, textAlign: 'center', marginTop: 12 }}>
-                    {pendingEvents.length - 1} more event{pendingEvents.length - 1 > 1 ? 's' : ''} pending
-                  </Text>
-                )}
-              </>)}
-              <Pressable onPress={() => setShowEventModal(false)} style={{ marginTop: 12, padding: 10, alignItems: 'center', borderWidth: 1, borderColor: locTheme.border, borderRadius: 6 }}>
-                <Text style={{ color: C.textSub, fontSize: 12 }}>Close</Text>
-              </Pressable>
-            </View>
-          </View>
-        </Modal>
 
         {/* ── DAILY ACTIONS CARD ── */}
         <View style={{ backgroundColor: locTheme.surface, borderWidth: 1, borderColor: C.gold, borderTopWidth: 3, borderTopColor: C.gold, borderRadius: 10, padding: 14, marginBottom: 12 }}>
