@@ -458,7 +458,7 @@ function processLivestockDailyProduce(state: GameState): GameState {
     if (group.type === 'Chicken') {
       if (healthyFemales <= 0) return { ...group, averageAge: newAverageAge, sickCount: newSickCount, injuredCount: newInjuredCount, dailyProduceBoostDays: hasFeedBoost ? group.dailyProduceBoostDays - 1 : 0 };
 
-      // Each female lays 3–7 eggs/day
+      // Each female lays 1–3 eggs/day (own eggs, not auto-hatched)
       const eggDef = def.eggsPerDay as { min: number; max: number };
       let totalEggs = 0;
       for (let i = 0; i < healthyFemales; i++) {
@@ -466,17 +466,33 @@ function processLivestockDailyProduce(state: GameState): GameState {
         totalEggs += hasFeedBoost ? Math.ceil(base * 1.4) : base;
       }
 
-      // Only 5% of total eggs hatch into chicks
-      const chicksHatched = Math.floor(totalEggs * def.hatchChance);
-
       if (totalEggs > 0) {
         newItems.push({ id: 'farm_eggs', name: 'Eggs (Farm)', category: 'livestock_product', quantity: totalEggs, unit: 'egg', hungerRestore: 8 });
       }
 
+      // Incubation: only eggs the player actively set aside hatch, after 7 days.
+      // Chick sex is rolled per-chick at hatch time — 20% male, 80% female.
+      let newIncubatingEggs = group.incubatingEggs ?? 0;
+      let newIncubationStartDay = group.incubationStartDay ?? null;
+      let hatchedMales = 0;
+      let hatchedFemales = 0;
+      const incubationDays = (def as any).incubationDays ?? 7;
+      const maleChance = (def as any).maleChance ?? 0.2;
+
+      if (newIncubationStartDay !== null && newIncubatingEggs > 0 && (state.day - newIncubationStartDay) >= incubationDays) {
+        for (let i = 0; i < newIncubatingEggs; i++) {
+          if (Math.random() < maleChance) hatchedMales++; else hatchedFemales++;
+        }
+        newIncubatingEggs = 0;
+        newIncubationStartDay = null;
+      }
+
       return {
         ...group,
-        females: group.females + Math.floor(chicksHatched / 2),
-        males: group.males + Math.ceil(chicksHatched / 2),
+        females: group.females + hatchedFemales,
+        males: group.males + hatchedMales,
+        incubatingEggs: newIncubatingEggs,
+        incubationStartDay: newIncubationStartDay,
         dailyProduceBoostDays: hasFeedBoost ? group.dailyProduceBoostDays - 1 : 0,
         averageAge: newAverageAge,
         sickCount: newSickCount,

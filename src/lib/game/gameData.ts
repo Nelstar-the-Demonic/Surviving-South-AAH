@@ -1049,7 +1049,7 @@ export const LIVESTOCK_DEFINITIONS = {
   Chicken: {
     buyCost: 80, sellPrice: 120, meatKg: 1.5, meatValue: 35, breedDays: 21,
     meatSellPricePerKg: 48, milkSellPricePerL: 0,
-    eggsPerDay: { min: 3, max: 7 }, hatchChance: 0.05,
+    eggsPerDay: { min: 1, max: 3 }, hatchChance: 0, incubationDays: 7, maleChance: 0.2,
     needsPregnancy: false, milkLPerDay: 0,
     litterMin: 0, litterMax: 0,
     twinChance: 0,
@@ -1403,7 +1403,7 @@ export function createInitialGameState(
       },
     ] : [],
     livestock: background === 'struggling_farmer' ? [
-      { type: 'Chicken' as const, males: 1, females: 3, animalFeedStockKg: 0, dailyProduceBoostDays: 0, pregnantFemales: 0, pregnancyDaysLeft: 0, sickCount: 0, injuredCount: 0, averageAge: 120 },
+      { type: 'Chicken' as const, males: 1, females: 3, animalFeedStockKg: 0, dailyProduceBoostDays: 0, pregnantFemales: 0, pregnancyDaysLeft: 0, incubatingEggs: 0, incubationStartDay: null, sickCount: 0, injuredCount: 0, averageAge: 120 },
     ] : [],
     farmLaborers: [],
     cropCyclesCompleted: 0,
@@ -1713,14 +1713,16 @@ export const ILLEGAL_SEED_DEFINITIONS = [
     name: 'Cannabis Seeds',
     price: 80, category: 'illegal_seed' as const,
     riskPercent: 10, demand: 'Medium' as const, supply: 'Limited' as const,
-    description: 'Plant illegally for a cannabis harvest. High yield if grown discreetly.',
+    cropType: 'Cannabis' as const, daysToHarvestMultiplier: 0.7, yieldMultiplier: 1.4,
+    description: 'Special strain. 30% faster to harvest, 40% bigger yield than regular seeds. Plant illegally for a cannabis harvest.',
   },
   {
     id: 'unregulated_maize_seeds',
     name: 'Unregulated GM Maize Seeds',
     price: 150, category: 'illegal_seed' as const,
     riskPercent: 5, demand: 'Low' as const, supply: 'Limited' as const,
-    description: 'Unlicensed high-yield seed stock. Illegal to plant without a permit.',
+    cropType: 'Maize' as const, daysToHarvestMultiplier: 0.8, yieldMultiplier: 1.3,
+    description: 'Unlicensed high-yield seed stock. 20% faster to harvest, 30% bigger yield. Illegal to plant without a permit.',
   },
 ];
 
