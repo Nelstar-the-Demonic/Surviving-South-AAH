@@ -48,7 +48,8 @@ type GameAction =
   | { type: 'START_BUSINESS'; payload: string }
   | { type: 'BUY_PROPERTY'; payload: { defIndex: number; owned: boolean } }
   | { type: 'BUY_VEHICLE'; payload: number }
-  | { type: 'PLANT_CROP'; payload: string }
+  | { type: 'PLANT_CROP'; payload: { cropType: string; seedItemId?: string } }
+  | { type: 'INCUBATE_EGGS'; payload: { livestockType: string; quantity: number } }
   | { type: 'HARVEST_CROP'; payload: string }
   | { type: 'SELL_HARVEST'; payload: { itemId: string; quantity: number } }
   | { type: 'BUY_LIVESTOCK'; payload: { type: string; isMale: boolean } }
@@ -479,22 +480,45 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const hasFarm = state.properties.some(p => p.type === 'Farm') || state.location === 'Farm';
       if (!hasFarm) return state;
 
-      const cropDef = CROP_DEFINITIONS[action.payload];
+      const { cropType, seedItemId } = action.payload;
+      const cropDef = CROP_DEFINITIONS[cropType];
       if (!cropDef) return state;
-
-      if (state.cash < cropDef.seedCost) return state;
 
       // Must have an available (purchased) crop plot
       const availablePlots = (state.cropPlotsOwned ?? 0) - state.cropPlots.length;
       if (availablePlots <= 0) return state;
 
+      let daysToHarvest = cropDef.daysToHarvest;
+      let yieldKg = cropDef.yieldKg;
+      let newCash = state.cash;
+      let newInventory = state.inventory;
+      let financeDescription = `Planted ${cropType} seeds`;
+      let financeAmount = -cropDef.seedCost;
+
+      if (seedItemId) {
+        // Planting with a special seed from inventory (e.g. black-market seeds)
+        const seedItem = state.inventory.find(i => i.id === seedItemId && i.quantity > 0 && i.linkedCropType === cropType);
+        if (!seedItem) return state;
+
+        daysToHarvest = Math.max(1, Math.round(cropDef.daysToHarvest * (seedItem.daysToHarvestMultiplier ?? 1)));
+        yieldKg = Math.round(cropDef.yieldKg * (seedItem.yieldMultiplier ?? 1) * 10) / 10;
+        newInventory = state.inventory
+          .map(i => i.id === seedItemId ? { ...i, quantity: i.quantity - 1 } : i)
+          .filter(i => i.quantity > 0.001);
+        financeDescription = `Planted ${seedItem.name}`;
+        financeAmount = 0; // already paid for at purchase time
+      } else {
+        if (state.cash < cropDef.seedCost) return state;
+        newCash = state.cash - cropDef.seedCost;
+      }
+
       const newPlot = {
         id: `plot_${Date.now()}`,
-        cropType: action.payload as import('@/types/game').CropType,
+        cropType: cropType as import('@/types/game').CropType,
         stage: 'seedling' as const,
         daysPlanted: 0,
-        daysToHarvest: cropDef.daysToHarvest,
-        yield: cropDef.yieldKg,
+        daysToHarvest,
+        yield: yieldKg,
         needsFertilizer: true,
         needsPesticide: false,
         needsWater: true,
@@ -508,14 +532,47 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 
       return {
         ...state,
-        cash: state.cash - cropDef.seedCost,
+        cash: newCash,
+        inventory: newInventory,
         cropPlots: [...state.cropPlots, newPlot],
         financeHistory: [...state.financeHistory, {
           day: state.day,
-          description: `Planted ${action.payload} seeds`,
-          amount: -cropDef.seedCost,
+          description: financeDescription,
+          amount: financeAmount,
           category: 'farm' as const,
         }],
+      };
+    }
+
+    case 'INCUBATE_EGGS': {
+      const { livestockType, quantity } = action.payload;
+      if (quantity <= 0) return state;
+
+      const eggItem = state.inventory.find(i => i.id === 'farm_eggs' && i.quantity > 0);
+      if (!eggItem || eggItem.quantity < quantity) return state;
+
+      const groupIdx = state.livestock.findIndex(g => g.type === livestockType);
+      if (groupIdx === -1) return state;
+
+      const newInventory = state.inventory
+        .map(i => i.id === 'farm_eggs' ? { ...i, quantity: i.quantity - quantity } : i)
+        .filter(i => i.quantity > 0.001);
+
+      const newLivestock = state.livestock.map((g, i) => {
+        if (i !== groupIdx) return g;
+        return {
+          ...g,
+          incubatingEggs: (g.incubatingEggs ?? 0) + quantity,
+          // Starting the timer fresh if nothing was incubating; if a batch is
+          // already in progress, the new eggs join it and hatch on the same day.
+          incubationStartDay: g.incubationStartDay ?? state.day,
+        };
+      });
+
+      return {
+        ...state,
+        inventory: newInventory,
+        livestock: newLivestock,
       };
     }
 
@@ -550,6 +607,8 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           dailyProduceBoostDays: 0,
           pregnantFemales: 0,
           pregnancyDaysLeft: 0,
+          incubatingEggs: 0,
+          incubationStartDay: null,
           sickCount: 0,
           injuredCount: 0,
           averageAge: 0,
@@ -1301,6 +1360,9 @@ function gameReducer(state: GameState, action: GameAction): GameState {
             category: 'illegal_seed' as const,
             quantity: 1,
             unit: 'unit',
+            linkedCropType: seedDef.cropType,
+            daysToHarvestMultiplier: seedDef.daysToHarvestMultiplier,
+            yieldMultiplier: seedDef.yieldMultiplier,
           }];
       let s = {
         ...state,
