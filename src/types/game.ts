@@ -246,6 +246,10 @@ export interface LivestockGroup {
   // Pregnancy (goats, cattle & pigs — triggered by Artificial Insemination)
   pregnantFemales: number;
   pregnancyDaysLeft: number;
+  // Egg incubation (chickens only) — eggs must be actively set to incubate;
+  // only incubated eggs hatch, after 7 days. Chick sex is rolled at hatch time.
+  incubatingEggs: number;
+  incubationStartDay: number | null;
   // Health / aging
   sickCount: number;      // number of sick animals
   injuredCount: number;   // number of injured animals
@@ -304,6 +308,10 @@ export interface InventoryItem {
   drugType?: string;
   portionsTotal?: number;   // total portions in one purchased unit
   portionsLeft?: number;    // remaining portions
+  // Special seed fields (black market seeds — faster growth, bigger yield)
+  linkedCropType?: string;
+  daysToHarvestMultiplier?: number;
+  yieldMultiplier?: number;
   // Medical kit fields
   treatsLivestockType?: string;
 }
