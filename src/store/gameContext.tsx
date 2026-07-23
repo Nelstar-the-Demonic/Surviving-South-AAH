@@ -52,6 +52,8 @@ type GameAction =
   | { type: 'PLANT_CROP'; payload: { cropType: string; seedItemId?: string } }
   | { type: 'INCUBATE_EGGS'; payload: { livestockType: string; quantity: number } }
   | { type: 'JOIN_GANG'; payload: import('@/types/game').PrisonGang }
+  | { type: 'APPLY_EARLY_RELEASE' }
+  | { type: 'PRISON_SKIP_DAYS'; payload: number }
   | { type: 'HARVEST_CROP'; payload: string }
   | { type: 'SELL_HARVEST'; payload: { itemId: string; quantity: number } }
   | { type: 'BUY_LIVESTOCK'; payload: { type: string; isMale: boolean } }
@@ -176,6 +178,9 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     case 'ADVANCE_DAY': {
       let s = applyDailyTick(state);
       s = checkPrisonRelease(s);
+      if (s.prison.imprisoned) {
+        s = { ...s, prison: { ...s.prison, goodBehaviorStreak: s.prison.goodBehaviorStreak + 1 } };
+      }
       // Prison uses 3 actions/day; normal play uses 4
       const maxActions = s.prison.imprisoned ? 3 : 4;
       return {
@@ -933,7 +938,11 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         s = {
           ...s,
           pendingEvents: [...s.pendingEvents, roll.event],
-          prison: { ...s.prison, incidentCooldowns: { ...s.prison.incidentCooldowns, [roll.templateId]: s.day } },
+          prison: {
+            ...s.prison,
+            incidentCooldowns: { ...s.prison.incidentCooldowns, [roll.templateId]: s.day },
+            goodBehaviorStreak: roll.severity === 'incident' ? 0 : s.prison.goodBehaviorStreak,
+          },
         };
       }
       return s;
@@ -945,7 +954,11 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         s = {
           ...s,
           pendingEvents: [...s.pendingEvents, roll.event],
-          prison: { ...s.prison, incidentCooldowns: { ...s.prison.incidentCooldowns, [roll.templateId]: s.day } },
+          prison: {
+            ...s.prison,
+            incidentCooldowns: { ...s.prison.incidentCooldowns, [roll.templateId]: s.day },
+            goodBehaviorStreak: roll.severity === 'incident' ? 0 : s.prison.goodBehaviorStreak,
+          },
         };
       }
       return s;
@@ -957,7 +970,11 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         s = {
           ...s,
           pendingEvents: [...s.pendingEvents, roll.event],
-          prison: { ...s.prison, incidentCooldowns: { ...s.prison.incidentCooldowns, [roll.templateId]: s.day } },
+          prison: {
+            ...s.prison,
+            incidentCooldowns: { ...s.prison.incidentCooldowns, [roll.templateId]: s.day },
+            goodBehaviorStreak: roll.severity === 'incident' ? 0 : s.prison.goodBehaviorStreak,
+          },
         };
       }
       return s;
@@ -979,7 +996,11 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         s = {
           ...s,
           pendingEvents: [...s.pendingEvents, roll.event],
-          prison: { ...s.prison, incidentCooldowns: { ...s.prison.incidentCooldowns, [roll.templateId]: s.day } },
+          prison: {
+            ...s.prison,
+            incidentCooldowns: { ...s.prison.incidentCooldowns, [roll.templateId]: s.day },
+            goodBehaviorStreak: roll.severity === 'incident' ? 0 : s.prison.goodBehaviorStreak,
+          },
         };
       }
       return s;
@@ -987,8 +1008,8 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'JOIN_GANG': {
       // Direct, deliberate join — only for the low-risk paths (AmaJita fitness
-      // crew, Reformers). The numbers gangs (26/27/28) can only be joined by
-      // accepting a recruitment event, never through a direct button.
+      // crew, Reformers). The number gangs can only be joined by accepting a
+      // recruitment event, never through a direct button.
       const gang = action.payload;
       if (gang !== 'amajita' && gang !== 'reformers') return state;
       if (state.prison.gang !== 'none') return state;
@@ -996,6 +1017,67 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         ...state,
         prison: { ...state.prison, gang, gangMember: false },
         stats: { ...state.stats, happiness: Math.min(100, state.stats.happiness + 6), stress: Math.max(0, state.stats.stress - 8) },
+      };
+    }
+
+    case 'APPLY_EARLY_RELEASE': {
+      if (!state.prison.imprisoned) return state;
+      const servedEnough = state.prison.daysServed >= state.prison.sentenceDays * 0.3;
+      const cleanEnough = state.prison.goodBehaviorStreak >= 21;
+      if (!servedEnough || !cleanEnough) return state;
+      return {
+        ...state,
+        prison: {
+          ...state.prison,
+          imprisoned: false,
+          sentenceDays: 0,
+          daysServed: 0,
+          crime: '',
+          goodBehaviorStreak: 0,
+          incidentCooldowns: {},
+        },
+        stats: { ...state.stats, happiness: Math.min(100, state.stats.happiness + 20), reputation: Math.min(100, state.stats.reputation + 5) },
+        pendingEvents: [...state.pendingEvents, {
+          id: `early_release_${state.day}`,
+          title: '🕊️ Early Release Granted',
+          description: 'Your clean record earned you a parole hearing — and it worked. You walk out ahead of schedule.',
+          type: 'government',
+          category: 'government',
+          choices: [{ label: 'Freedom', outcome: '', effect: {} }],
+          day: state.day,
+        }],
+      };
+    }
+
+    case 'PRISON_SKIP_DAYS': {
+      if (!state.prison.imprisoned) return state;
+      const requestedDays = Math.max(1, action.payload);
+      let s = state;
+      let daysAdvanced = 0;
+
+      for (let i = 0; i < requestedDays; i++) {
+        if (!s.prison.imprisoned) break; // sentence completed mid-skip
+        s = applyDailyTick(s);
+        s = checkPrisonRelease(s);
+        s = {
+          ...s,
+          prison: {
+            ...s.prison,
+            goodBehaviorStreak: s.prison.imprisoned ? s.prison.goodBehaviorStreak + 1 : s.prison.goodBehaviorStreak,
+          },
+        };
+        daysAdvanced++;
+        if (s.pendingEvents.length > 0) break; // stop immediately if anything needs the player's attention
+      }
+
+      const maxActions = s.prison.imprisoned ? 3 : 4;
+      return {
+        ...s,
+        maxActionsPerDay: maxActions,
+        adRewards: {
+          ...(s.adRewards ?? { lastClaimedDay: {}, bonusActionsToday: 0 }),
+          bonusActionsToday: 0,
+        },
       };
     }
 
