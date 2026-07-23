@@ -409,7 +409,7 @@ export interface EventChoice {
 }
 
 // ─── Prison ───────────────────────────────────────────────────────────────────
-export type PrisonGang = 'none' | '26' | '27' | '28' | 'amajita' | 'reformers';
+export type PrisonGang = 'none' | 'sunrise' | 'axemen' | 'amadoda' | 'amajita' | 'reformers';
 
 export interface PrisonState {
   imprisoned: boolean;
