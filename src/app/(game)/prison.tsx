@@ -102,6 +102,8 @@ export default function Prison() {
   const actionsLeft = Math.max(0, prisonMax - productiveActionsUsed);
   const pct = Math.round((prison.daysServed / prison.sentenceDays) * 100);
   const daysLeft = prison.sentenceDays - prison.daysServed;
+  const goodBehaviorStreak = prison.goodBehaviorStreak ?? 0;
+  const earlyReleaseEligible = goodBehaviorStreak >= 21 && prison.daysServed >= prison.sentenceDays * 0.3;
   const avgDailyLabour = prison.daysServed > 0 ? prison.prisonEarnings / prison.daysServed : 0;
 
   function handleAdvanceDay() {
@@ -347,6 +349,61 @@ export default function Prison() {
               </Pressable>
             );
           })}
+
+          {/* ── GOOD BEHAVIOR / EARLY RELEASE ── */}
+          <View className="mb-4 p-4" style={{ backgroundColor: '#0A0A0A', borderWidth: 1, borderColor: '#444' }}>
+            <Text className="text-xs font-bold tracking-wider mb-2" style={{ color: '#B0B0B0' }}>🕊️ GOOD BEHAVIOR</Text>
+            <Text className="text-muted-foreground text-xs mb-3">
+              Clean streak: <Text style={{ color: goodBehaviorStreak >= 21 ? '#4CAF50' : '#FFB81C', fontWeight: '800' }}>{Math.min(goodBehaviorStreak, 21)}/21 days</Text> since your last incident.
+              Stay out of trouble long enough — and have served at least 30% of your sentence — to apply for early release.
+            </Text>
+            <Pressable
+              onPress={() => {
+                if (!earlyReleaseEligible) return;
+                dispatch({ type: 'APPLY_EARLY_RELEASE' });
+                showFeedback('🕊️ Early release granted!');
+              }}
+              disabled={!earlyReleaseEligible || isProcessing}
+              className="py-3 items-center"
+              style={{
+                borderWidth: 1,
+                borderColor: earlyReleaseEligible ? '#4CAF50' : '#333',
+                backgroundColor: earlyReleaseEligible ? '#0D1A0D' : '#0A0A0A',
+                opacity: earlyReleaseEligible ? 1 : 0.5,
+              }}
+            >
+              <Text style={{ color: earlyReleaseEligible ? '#4CAF50' : '#666' }} className="font-bold text-xs">
+                {earlyReleaseEligible ? '🕊️ APPLY FOR EARLY RELEASE' : `Needs ${21 - Math.min(goodBehaviorStreak, 21)} more clean day(s) & 30% served`}
+              </Text>
+            </Pressable>
+          </View>
+
+          {/* ── SKIP AHEAD ── */}
+          <View className="mb-4 p-4" style={{ backgroundColor: '#0A0A0A', borderWidth: 1, borderColor: '#444' }}>
+            <Text className="text-xs font-bold tracking-wider mb-2" style={{ color: '#B0B0B0' }}>⏩ SKIP AHEAD</Text>
+            <Text className="text-muted-foreground text-xs mb-3">
+              Fast-forward through a stretch of your sentence at once. Stops early if something happens that needs your attention.
+            </Text>
+            <View className="flex-row gap-2">
+              {[14, 21].map(days => (
+                <Pressable
+                  key={days}
+                  disabled={isProcessing}
+                  onPress={() => {
+                    if (isProcessing) return;
+                    setIsProcessing(true);
+                    dispatch({ type: 'PRISON_SKIP_DAYS', payload: days });
+                    showFeedback(`⏩ Skipped ahead ${days} days (or until something came up).`);
+                    setTimeout(() => setIsProcessing(false), 500);
+                  }}
+                  className="flex-1 py-3 items-center"
+                  style={{ borderWidth: 1, borderColor: '#64B5F6', backgroundColor: '#0A1420', opacity: isProcessing ? 0.5 : 1 }}
+                >
+                  <Text style={{ color: '#64B5F6' }} className="font-bold text-xs">⏩ Skip {days} Days</Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
 
           {/* ── ADVANCE DAY ── */}
           <View className="mt-2 mb-4">
