@@ -401,6 +401,7 @@ export interface EventChoice {
     wantedLevelChange: number;        // crime heat delta
     businessReputationChange: number; // applies to a random owned business
     vehicleConditionChange: number;   // applies to a random owned vehicle
+    joinPrisonGang: PrisonGang; // sets prison gang affiliation (accept recruitment)
   }>;
   // NPC meet event extras (set by engine, consumed by context reducer)
   npcData?: { id: string; name: string; role: string; age: number; background: string; canOffer: string[] };
@@ -408,15 +409,20 @@ export interface EventChoice {
 }
 
 // ─── Prison ───────────────────────────────────────────────────────────────────
+export type PrisonGang = 'none' | '26' | '27' | '28' | 'amajita' | 'reformers';
+
 export interface PrisonState {
   imprisoned: boolean;
   sentenceDays: number;
   daysServed: number;
   crime: string;
-  gangMember: boolean;
+  gangMember: boolean; // kept for back-compat with existing UI checks — derived from gang !== 'none'
+  gang: PrisonGang;
   prisonEarnings: number;
   facility: string;
   prisonSkills: { study: number; fitness: number };
+  goodBehaviorStreak: number;              // consecutive days served with no incident
+  incidentCooldowns: Record<string, number>; // prison event template id -> last day fired
 }
 
 // ─── Injury ───────────────────────────────────────────────────────────────────
