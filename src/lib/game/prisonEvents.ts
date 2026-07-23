@@ -19,6 +19,7 @@ export interface PrisonEventTemplate {
   weight: number;
   cooldownDays: number;
   activityTags: PrisonActivity[];
+  severity: 'incident' | 'neutral'; // 'incident' resets the good-behavior streak; 'neutral' doesn't
   condition: (state: GameState) => boolean;
   build: (state: GameState) => { title: string; description: string; choices: GameEvent['choices'] };
 }
@@ -39,7 +40,7 @@ const GANG_INFO: Record<Exclude<PrisonGang, 'none'>, { name: string; flavor: str
 // ══════════════════════════════════════════════════════════════════════════
 const GANG_RECRUITMENT_EVENTS: PrisonEventTemplate[] = [
   {
-    id: 'prison_recruit_sunrise', weight: 2, cooldownDays: 12, activityTags: ['labour', 'socialize'],
+    id: 'prison_recruit_sunrise', weight: 2, cooldownDays: 12, activityTags: ['labour', 'socialize'], severity: 'incident',
     condition: (s) => s.prison.gang === 'none',
     build: () => ({
       title: '💰 Sunrise Is Watching',
@@ -51,7 +52,7 @@ const GANG_RECRUITMENT_EVENTS: PrisonEventTemplate[] = [
     }),
   },
   {
-    id: 'prison_recruit_axemen', weight: 2, cooldownDays: 12, activityTags: ['exercise', 'labour'],
+    id: 'prison_recruit_axemen', weight: 2, cooldownDays: 12, activityTags: ['exercise', 'labour'], severity: 'incident',
     condition: (s) => s.prison.gang === 'none',
     build: () => ({
       title: '🪓 The Axemen Make Contact',
@@ -63,7 +64,7 @@ const GANG_RECRUITMENT_EVENTS: PrisonEventTemplate[] = [
     }),
   },
   {
-    id: 'prison_recruit_amadoda', weight: 2, cooldownDays: 12, activityTags: ['labour', 'exercise'],
+    id: 'prison_recruit_amadoda', weight: 2, cooldownDays: 12, activityTags: ['labour', 'exercise'], severity: 'incident',
     condition: (s) => s.prison.gang === 'none',
     build: () => ({
       title: '⚔️ Amadoda Amnyama Extend an Offer',
@@ -81,7 +82,7 @@ const GANG_RECRUITMENT_EVENTS: PrisonEventTemplate[] = [
 // ══════════════════════════════════════════════════════════════════════════
 const FIGHT_EVENTS: PrisonEventTemplate[] = [
   {
-    id: 'prison_fight_yard', weight: 3, cooldownDays: 6, activityTags: ['exercise', 'labour'],
+    id: 'prison_fight_yard', weight: 3, cooldownDays: 6, activityTags: ['exercise', 'labour'], severity: 'incident',
     condition: () => true,
     build: () => ({
       title: '👊 A Fight Breaks Out',
@@ -93,7 +94,7 @@ const FIGHT_EVENTS: PrisonEventTemplate[] = [
     }),
   },
   {
-    id: 'prison_fight_gang_rival', weight: 2, cooldownDays: 10, activityTags: ['labour', 'exercise', 'socialize'],
+    id: 'prison_fight_gang_rival', weight: 2, cooldownDays: 10, activityTags: ['labour', 'exercise', 'socialize'], severity: 'incident',
     condition: (s) => s.prison.gang !== 'none' && s.prison.gang !== 'reformers',
     build: (s) => ({
       title: '⚠️ Rival Number Confronts You',
@@ -111,7 +112,7 @@ const FIGHT_EVENTS: PrisonEventTemplate[] = [
 // ══════════════════════════════════════════════════════════════════════════
 const STABBING_EVENTS: PrisonEventTemplate[] = [
   {
-    id: 'prison_stabbing', weight: 1, cooldownDays: 25, activityTags: ['labour', 'exercise'],
+    id: 'prison_stabbing', weight: 1, cooldownDays: 25, activityTags: ['labour', 'exercise'], severity: 'incident',
     condition: (s) => s.prison.gang !== 'none' && s.prison.gang !== 'reformers' && s.prison.gang !== 'amajita',
     build: () => ({
       title: '🔪 Ambushed',
@@ -128,7 +129,7 @@ const STABBING_EVENTS: PrisonEventTemplate[] = [
 // ══════════════════════════════════════════════════════════════════════════
 const WARDER_EVENTS: PrisonEventTemplate[] = [
   {
-    id: 'prison_warder_beating', weight: 2, cooldownDays: 15, activityTags: ['labour', 'exercise'],
+    id: 'prison_warder_beating', weight: 2, cooldownDays: 15, activityTags: ['labour', 'exercise'], severity: 'incident',
     condition: () => true,
     build: () => ({
       title: '👮 A Warder Loses Patience',
@@ -146,7 +147,7 @@ const WARDER_EVENTS: PrisonEventTemplate[] = [
 // ══════════════════════════════════════════════════════════════════════════
 const BULLYING_EVENTS: PrisonEventTemplate[] = [
   {
-    id: 'prison_bully_books', weight: 3, cooldownDays: 10, activityTags: ['study'],
+    id: 'prison_bully_books', weight: 3, cooldownDays: 10, activityTags: ['study'], severity: 'incident',
     condition: () => true,
     build: () => ({
       title: '📕 Books Go Missing',
@@ -158,7 +159,7 @@ const BULLYING_EVENTS: PrisonEventTemplate[] = [
     }),
   },
   {
-    id: 'prison_study_fight', weight: 1, cooldownDays: 15, activityTags: ['study'],
+    id: 'prison_study_fight', weight: 1, cooldownDays: 15, activityTags: ['study'], severity: 'incident',
     condition: () => true,
     build: () => ({
       title: '📚 A Shove in the Library',
@@ -176,7 +177,7 @@ const BULLYING_EVENTS: PrisonEventTemplate[] = [
 // ══════════════════════════════════════════════════════════════════════════
 const GOOD_BEHAVIOR_EVENTS: PrisonEventTemplate[] = [
   {
-    id: 'prison_good_behavior_praise', weight: 3, cooldownDays: 10, activityTags: ['study'],
+    id: 'prison_good_behavior_praise', weight: 3, cooldownDays: 10, activityTags: ['study'], severity: 'neutral',
     condition: () => true,
     build: () => ({
       title: '🌟 Noticed for the Right Reasons',
@@ -187,7 +188,7 @@ const GOOD_BEHAVIOR_EVENTS: PrisonEventTemplate[] = [
     }),
   },
   {
-    id: 'prison_reformers_meeting', weight: 2, cooldownDays: 15, activityTags: ['study'],
+    id: 'prison_reformers_meeting', weight: 2, cooldownDays: 15, activityTags: ['study'], severity: 'neutral',
     condition: (s) => s.prison.gang !== 'reformers',
     build: () => ({
       title: '🕊️ A Reformers\' Meeting',
@@ -205,7 +206,7 @@ const GOOD_BEHAVIOR_EVENTS: PrisonEventTemplate[] = [
 // ══════════════════════════════════════════════════════════════════════════
 const VISIT_EVENTS: PrisonEventTemplate[] = [
   {
-    id: 'prison_family_visit', weight: 3, cooldownDays: 14, activityTags: ['socialize', 'study'],
+    id: 'prison_family_visit', weight: 3, cooldownDays: 14, activityTags: ['socialize', 'study'], severity: 'neutral',
     condition: () => true,
     build: () => ({
       title: '👨‍👩‍👧 A Visit',
@@ -216,7 +217,7 @@ const VISIT_EVENTS: PrisonEventTemplate[] = [
     }),
   },
   {
-    id: 'prison_no_visit', weight: 1, cooldownDays: 20, activityTags: ['socialize'],
+    id: 'prison_no_visit', weight: 1, cooldownDays: 20, activityTags: ['socialize'], severity: 'incident',
     condition: () => true,
     build: () => ({
       title: '😔 No One Came',
@@ -233,7 +234,7 @@ const VISIT_EVENTS: PrisonEventTemplate[] = [
 // ══════════════════════════════════════════════════════════════════════════
 const BRIBE_EVENTS: PrisonEventTemplate[] = [
   {
-    id: 'prison_warder_bribe_offer', weight: 2, cooldownDays: 15, activityTags: ['labour', 'socialize'],
+    id: 'prison_warder_bribe_offer', weight: 2, cooldownDays: 15, activityTags: ['labour', 'socialize'], severity: 'neutral',
     condition: (s) => s.cash > 200,
     build: () => {
       const amount = randInt(150, 500);
@@ -254,7 +255,7 @@ const BRIBE_EVENTS: PrisonEventTemplate[] = [
 // ══════════════════════════════════════════════════════════════════════════
 const FRIENDSHIP_EVENTS: PrisonEventTemplate[] = [
   {
-    id: 'prison_friend_positive', weight: 2, cooldownDays: 15, activityTags: ['socialize', 'labour', 'exercise'],
+    id: 'prison_friend_positive', weight: 2, cooldownDays: 15, activityTags: ['socialize', 'labour', 'exercise'], severity: 'neutral',
     condition: () => true,
     build: () => ({
       title: '🤝 An Unexpected Ally',
@@ -265,7 +266,7 @@ const FRIENDSHIP_EVENTS: PrisonEventTemplate[] = [
     }),
   },
   {
-    id: 'prison_friend_negative', weight: 2, cooldownDays: 15, activityTags: ['socialize'],
+    id: 'prison_friend_negative', weight: 2, cooldownDays: 15, activityTags: ['socialize'], severity: 'incident',
     condition: () => true,
     build: () => {
       const amount = randInt(50, 200);
@@ -293,7 +294,7 @@ export const PRISON_EVENT_LIBRARY: PrisonEventTemplate[] = [
  * rarer; Socialize sits in between (and is how gang contacts are made).
  * Returns null if nothing fires (most of the time, for Study especially).
  */
-export function rollPrisonEvent(state: GameState, activity: PrisonActivity): { event: GameEvent; templateId: string } | null {
+export function rollPrisonEvent(state: GameState, activity: PrisonActivity): { event: GameEvent; templateId: string; severity: 'incident' | 'neutral' } | null {
   const chanceByActivity: Record<PrisonActivity, number> = {
     labour: 0.32,
     exercise: 0.32,
@@ -332,5 +333,5 @@ export function rollPrisonEvent(state: GameState, activity: PrisonActivity): { e
     day: state.day,
   };
 
-  return { event, templateId: chosen.id };
+  return { event, templateId: chosen.id, severity: chosen.severity };
 }
