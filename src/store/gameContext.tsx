@@ -21,6 +21,7 @@ import {
   performHarvestOrchard, performSlaughterForMeat, performGrantBonusAction,
   healAllLivestock, sellLivestockBulk, applyBlackMarketRisk, performDrinkAlcohol,
 } from '@/lib/game/gameEngine';
+import { rollPrisonEvent } from '@/lib/game/prisonEvents';
 
 // ─── Save Keys ────────────────────────────────────────────────────────────────
 const SAVE_FILE = (FileSystem.documentDirectory ?? '') + 'ssa_game_save.json';
@@ -50,6 +51,7 @@ type GameAction =
   | { type: 'BUY_VEHICLE'; payload: number }
   | { type: 'PLANT_CROP'; payload: { cropType: string; seedItemId?: string } }
   | { type: 'INCUBATE_EGGS'; payload: { livestockType: string; quantity: number } }
+  | { type: 'JOIN_GANG'; payload: import('@/types/game').PrisonGang }
   | { type: 'HARVEST_CROP'; payload: string }
   | { type: 'SELL_HARVEST'; payload: { itemId: string; quantity: number } }
   | { type: 'BUY_LIVESTOCK'; payload: { type: string; isMale: boolean } }
@@ -150,7 +152,13 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         businesses:       action.payload.businesses      ?? blank.businesses,
         farmLaborers:     action.payload.farmLaborers    ?? blank.farmLaborers,
         npcs:             action.payload.npcs            ?? blank.npcs,
-        prison:           action.payload.prison          ?? blank.prison,
+        prison:           action.payload.prison ? {
+                            ...blank.prison,
+                            ...action.payload.prison,
+                            gang: action.payload.prison.gang ?? 'none',
+                            goodBehaviorStreak: action.payload.prison.goodBehaviorStreak ?? 0,
+                            incidentCooldowns: action.payload.prison.incidentCooldowns ?? {},
+                          } : blank.prison,
         financeHistory:   action.payload.financeHistory  ?? blank.financeHistory,
         adRewards:        action.payload.adRewards       ?? blank.adRewards,
         cropPlotsOwned:   action.payload.cropPlotsOwned  ?? blank.cropPlotsOwned,
@@ -899,6 +907,13 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         };
       }
 
+      if (choice.effect.joinPrisonGang) {
+        s = {
+          ...s,
+          prison: { ...s.prison, gang: choice.effect.joinPrisonGang, gangMember: choice.effect.joinPrisonGang !== 'none' && choice.effect.joinPrisonGang !== 'reformers' && choice.effect.joinPrisonGang !== 'amajita' },
+        };
+      }
+
       // NPC meet event: accept adds NPC, reject sets cooldown
       if (choice.npcData) {
         const npcData = choice.npcData;
@@ -911,27 +926,76 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       return s;
     }
 
-    case 'PRISON_LABOUR':
-      return performPrisonLabour(state);
-    case 'PRISON_STUDY':
-      return performPrisonStudy(state);
-    case 'PRISON_EXERCISE':
-      return performPrisonExercise(state);
+    case 'PRISON_LABOUR': {
+      let s = performPrisonLabour(state);
+      const roll = rollPrisonEvent(s, 'labour');
+      if (roll) {
+        s = {
+          ...s,
+          pendingEvents: [...s.pendingEvents, roll.event],
+          prison: { ...s.prison, incidentCooldowns: { ...s.prison.incidentCooldowns, [roll.templateId]: s.day } },
+        };
+      }
+      return s;
+    }
+    case 'PRISON_STUDY': {
+      let s = performPrisonStudy(state);
+      const roll = rollPrisonEvent(s, 'study');
+      if (roll) {
+        s = {
+          ...s,
+          pendingEvents: [...s.pendingEvents, roll.event],
+          prison: { ...s.prison, incidentCooldowns: { ...s.prison.incidentCooldowns, [roll.templateId]: s.day } },
+        };
+      }
+      return s;
+    }
+    case 'PRISON_EXERCISE': {
+      let s = performPrisonExercise(state);
+      const roll = rollPrisonEvent(s, 'exercise');
+      if (roll) {
+        s = {
+          ...s,
+          pendingEvents: [...s.pendingEvents, roll.event],
+          prison: { ...s.prison, incidentCooldowns: { ...s.prison.incidentCooldowns, [roll.templateId]: s.day } },
+        };
+      }
+      return s;
+    }
 
     case 'PRISON_SOCIALIZE': {
-      const gangChance = Math.random() > 0.7;
-      return {
+      let s: GameState = {
         ...state,
         actionsUsedToday: [...state.actionsUsedToday, 'prison_socialize'],
-        prison: {
-          ...state.prison,
-          gangMember: state.prison.gangMember || gangChance,
-        },
         stats: {
           ...state.stats,
           happiness: Math.min(100, state.stats.happiness + 8),
-          reputation: gangChance ? Math.max(0, state.stats.reputation - 5) : state.stats.reputation,
         },
+      };
+      // Gang recruitment (if it happens at all) now comes through the event
+      // system below as an explicit accept/decline choice — never automatic.
+      const roll = rollPrisonEvent(s, 'socialize');
+      if (roll) {
+        s = {
+          ...s,
+          pendingEvents: [...s.pendingEvents, roll.event],
+          prison: { ...s.prison, incidentCooldowns: { ...s.prison.incidentCooldowns, [roll.templateId]: s.day } },
+        };
+      }
+      return s;
+    }
+
+    case 'JOIN_GANG': {
+      // Direct, deliberate join — only for the low-risk paths (AmaJita fitness
+      // crew, Reformers). The numbers gangs (26/27/28) can only be joined by
+      // accepting a recruitment event, never through a direct button.
+      const gang = action.payload;
+      if (gang !== 'amajita' && gang !== 'reformers') return state;
+      if (state.prison.gang !== 'none') return state;
+      return {
+        ...state,
+        prison: { ...state.prison, gang, gangMember: false },
+        stats: { ...state.stats, happiness: Math.min(100, state.stats.happiness + 6), stress: Math.max(0, state.stats.stress - 8) },
       };
     }
 
