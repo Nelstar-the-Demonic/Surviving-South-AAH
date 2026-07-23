@@ -13,25 +13,25 @@ const PRISON_ACTIONS = [
     id: 'prison_labour',
     label: 'Do Prison Labour',
     icon: '⛏️',
-    desc: 'Break rocks / clean facilities. Earns R20-R50. -Energy',
+    desc: 'Break rocks / clean facilities. Earns R20-R50. -Energy. Rough crowd — incidents happen here most.',
   },
   {
     id: 'prison_exercise',
     label: 'Exercise in Yard',
     icon: '💪',
-    desc: 'Push-ups and yard running. +Fitness, +Health',
+    desc: '+Fitness, +Health. Yard politics — incidents happen here most too.',
   },
   {
     id: 'prison_study',
     label: 'Study in Library',
     icon: '📚',
-    desc: 'Prison library has limited books. +Intelligence',
+    desc: '+Intelligence. Safer, but not risk-free — occasional bullying.',
   },
   {
     id: 'prison_socialize',
     label: 'Socialize with Inmates',
     icon: '🗣️',
-    desc: '+Happiness, -Stress. Risk of gang recruitment.',
+    desc: '+Happiness, -Stress. How gang contacts are made — but joining is always your choice.',
   },
   {
     id: 'prison_rest',
@@ -46,6 +46,7 @@ export default function Prison() {
   const { state, dispatch } = useGame();
   const [feedback, setFeedback] = useState<string | null>(null);
   const [dayAdvanced, setDayAdvanced] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   // Block Android hardware back button while imprisoned
   useFocusEffect(
@@ -65,12 +66,16 @@ export default function Prison() {
   }
 
   function doAction(actionId: string) {
+    if (isProcessing) return; // prevents rapid multi-tap from queueing duplicate dispatches
     // Prison gets max 3 actions/day — enforced here and in reducer
     const prisonActionsUsed = actionsUsedToday.filter(a => a !== 'rest' && a !== 'shower').length;
     if (prisonActionsUsed >= 3 && actionId !== 'prison_rest') {
       showFeedback('⛔ No actions remaining today. Rest or advance the day.');
       return;
     }
+
+    setIsProcessing(true);
+    setTimeout(() => setIsProcessing(false), 400); // brief lock, long enough to absorb accidental double-taps
 
     if (actionId === 'prison_labour') {
       dispatch({ type: 'PRISON_LABOUR' });
@@ -83,11 +88,7 @@ export default function Prison() {
       showFeedback('📚 Studied in the library. Intelligence improved.');
     } else if (actionId === 'prison_socialize') {
       dispatch({ type: 'PRISON_SOCIALIZE' });
-      if (Math.random() < 0.2) {
-        showFeedback('⚠️ Someone tried to recruit you into a gang...');
-      } else {
-        showFeedback('🗣️ Chatted with inmates. Happiness up.');
-      }
+      showFeedback('🗣️ Chatted with inmates. Happiness up.');
     } else {
       // REST — never consumes action
       dispatch({ type: 'REST' });
@@ -104,11 +105,14 @@ export default function Prison() {
   const avgDailyLabour = prison.daysServed > 0 ? prison.prisonEarnings / prison.daysServed : 0;
 
   function handleAdvanceDay() {
+    if (isProcessing || dayAdvanced) return;
+    setIsProcessing(true);
     dispatch({ type: 'ADVANCE_DAY' });
     setDayAdvanced(true);
     setFeedback(`📅 Day advanced. ${Math.max(0, daysLeft - 1)} days remaining in sentence.`);
     setTimeout(() => {
       setDayAdvanced(false);
+      setIsProcessing(false);
       setFeedback(null);
     }, 2500);
   }
@@ -247,6 +251,47 @@ export default function Prison() {
             )}
           </View>
 
+          {/* Gang Affiliation */}
+          <View className="mb-4 p-4" style={{ backgroundColor: '#0A0A0A', borderWidth: 1, borderColor: '#444' }}>
+            <Text className="text-xs font-bold tracking-wider mb-3" style={{ color: '#B0B0B0' }}>🏴 WING AFFILIATION</Text>
+            {prison.gang === 'none' ? (
+              <>
+                <Text className="text-muted-foreground text-xs mb-3">
+                  You're not affiliated with anyone. The numbers gangs (26, 27, 28) will approach you in time —
+                  it's always your choice whether to accept. You can also choose to join a lower-risk group directly:
+                </Text>
+                <View className="flex-row gap-2">
+                  <Pressable
+                    onPress={() => { dispatch({ type: 'JOIN_GANG', payload: 'amajita' }); showFeedback('💪 You joined AmaJita — the gym crew.'); }}
+                    className="flex-1 p-3 items-center"
+                    style={{ borderWidth: 1, borderColor: '#8BC34A', backgroundColor: '#0D1A0D' }}
+                  >
+                    <Text style={{ color: '#8BC34A' }} className="font-bold text-xs">💪 AmaJita</Text>
+                    <Text className="text-muted-foreground text-xs text-center mt-1">Gym crew. Respect through strength, not violence.</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => { dispatch({ type: 'JOIN_GANG', payload: 'reformers' }); showFeedback('🕊️ You joined the Reformers.'); }}
+                    className="flex-1 p-3 items-center"
+                    style={{ borderWidth: 1, borderColor: '#64B5F6', backgroundColor: '#0A1420' }}
+                  >
+                    <Text style={{ color: '#64B5F6' }} className="font-bold text-xs">🕊️ Reformers</Text>
+                    <Text className="text-muted-foreground text-xs text-center mt-1">Focused on rehabilitation and a clean record.</Text>
+                  </Pressable>
+                </View>
+              </>
+            ) : (
+              <Text className="text-sm font-bold" style={{
+                color: prison.gang === '26' ? '#F5C842' : prison.gang === '27' ? '#E32636' : prison.gang === '28' ? '#9C27B0' : prison.gang === 'amajita' ? '#8BC34A' : '#64B5F6'
+              }}>
+                {prison.gang === '26' && '💰 The 26s — money and hustle run the wing economy.'}
+                {prison.gang === '27' && '🩸 The 27s — enforcers, respected and feared.'}
+                {prison.gang === '28' && '⚔️ The 28s — control the section, territory and protection.'}
+                {prison.gang === 'amajita' && '💪 AmaJita — the gym crew. Strength earns respect here.'}
+                {prison.gang === 'reformers' && '🕊️ The Reformers — focused on rehabilitation.'}
+              </Text>
+            )}
+          </View>
+
           {/* Action counter */}
           <View className="mb-3 p-3 flex-row items-center justify-between"
             style={{ backgroundColor: '#0D0D0D', borderWidth: 1, borderColor: actionsLeft > 0 ? '#333' : '#E32636' }}>
@@ -271,7 +316,7 @@ export default function Prison() {
 
           {PRISON_ACTIONS.map(action => {
             const isRest = action.id === 'prison_rest';
-            const disabled = !isRest && actionsLeft === 0;
+            const disabled = (!isRest && actionsLeft === 0) || isProcessing;
             return (
               <Pressable
                 key={action.id}
@@ -283,6 +328,7 @@ export default function Prison() {
                   opacity: disabled ? 0.5 : 1,
                 }}
                 onPress={() => doAction(action.id)}
+                disabled={disabled}
               >
                 <Text className="text-2xl mr-3">{action.icon}</Text>
                 <View className="flex-1">
