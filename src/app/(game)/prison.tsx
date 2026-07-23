@@ -257,7 +257,7 @@ export default function Prison() {
             {prison.gang === 'none' ? (
               <>
                 <Text className="text-muted-foreground text-xs mb-3">
-                  You're not affiliated with anyone. The numbers gangs (26, 27, 28) will approach you in time —
+                  You're not affiliated with anyone. Wing crews like Sunrise, the Axemen, or Amadoda Amnyama will approach you in time —
                   it's always your choice whether to accept. You can also choose to join a lower-risk group directly:
                 </Text>
                 <View className="flex-row gap-2">
@@ -281,11 +281,11 @@ export default function Prison() {
               </>
             ) : (
               <Text className="text-sm font-bold" style={{
-                color: prison.gang === '26' ? '#F5C842' : prison.gang === '27' ? '#E32636' : prison.gang === '28' ? '#9C27B0' : prison.gang === 'amajita' ? '#8BC34A' : '#64B5F6'
+                color: prison.gang === 'sunrise' ? '#F5C842' : prison.gang === 'axemen' ? '#E32636' : prison.gang === 'amadoda' ? '#9C27B0' : prison.gang === 'amajita' ? '#8BC34A' : '#64B5F6'
               }}>
-                {prison.gang === '26' && '💰 The 26s — money and hustle run the wing economy.'}
-                {prison.gang === '27' && '🩸 The 27s — enforcers, respected and feared.'}
-                {prison.gang === '28' && '⚔️ The 28s — control the section, territory and protection.'}
+                {prison.gang === 'sunrise' && '💰 Sunrise — money and hustle run the wing economy.'}
+                {prison.gang === 'axemen' && '🪓 The Axemen — the muscle, respected and feared.'}
+                {prison.gang === 'amadoda' && '⚔️ Amadoda Amnyama — the heaviest crowd in the wing.'}
                 {prison.gang === 'amajita' && '💪 AmaJita — the gym crew. Strength earns respect here.'}
                 {prison.gang === 'reformers' && '🕊️ The Reformers — focused on rehabilitation.'}
               </Text>
