@@ -2367,9 +2367,12 @@ export function performCrime(state: GameState, crimeId: string): GameState {
           daysServed: 0,
           crime: crimeDef.name,
           gangMember: false,
+          gang: 'none',
           prisonEarnings: 0,
           facility: 'Pollsmoor Correctional Centre',
           prisonSkills: { study: 0, fitness: 0 },
+          goodBehaviorStreak: 0,
+          incidentCooldowns: {},
         },
       };
     } else {
@@ -2486,9 +2489,12 @@ export function sellCannabisHarvest(state: GameState, qty: number): GameState {
         daysServed: 0,
         crime: 'Selling Cannabis',
         gangMember: false,
+        gang: 'none',
         prisonEarnings: 0,
         facility: 'Pollsmoor Correctional Centre',
         prisonSkills: { study: 0, fitness: 0 },
+        goodBehaviorStreak: 0,
+        incidentCooldowns: {},
       },
     };
   } else if (caught) {

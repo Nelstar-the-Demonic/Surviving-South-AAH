@@ -1439,9 +1439,12 @@ export function createInitialGameState(
       daysServed: 0,
       crime: '',
       gangMember: false,
+      gang: 'none',
       prisonEarnings: 0,
       facility: 'Pollsmoor Correctional Centre',
       prisonSkills: { study: 0, fitness: 0 },
+      goodBehaviorStreak: 0,
+      incidentCooldowns: {},
     },
     injury: {
       injured: false,
