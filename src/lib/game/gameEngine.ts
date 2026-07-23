@@ -815,6 +815,11 @@ export function performArtificialInsemination(state: GameState, livestockType: s
 
 // ─── Context-Aware Event Generation ───────────────────────────────────────────
 export function generateDailyEvents(state: GameState): GameState {
+  // While imprisoned, only the prison event system fires (see prisonEvents.ts) —
+  // life continues outside, but the player shouldn't get community/funeral/
+  // business events they can't meaningfully act on from inside.
+  if (state.prison.imprisoned) return state;
+
   // Cap concurrent pending events so the player is never buried under a stack
   if (state.pendingEvents.length >= 3) return state;
 
