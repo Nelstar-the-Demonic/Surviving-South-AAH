@@ -32,6 +32,24 @@ export function applyDailyTick(state: GameState): GameState {
     stats.drugEffectDaysLeft = Math.max(0, (stats.drugEffectDaysLeft ?? 0) - 1);
   }
 
+  // Injury recovery — counts down daily; clears once healed (permanent
+  // crippling, if any, is untouched — that's a separate, lasting condition)
+  if (s.injury?.injured) {
+    const newDaysHealing = Math.max(0, (s.injury.daysHealing ?? 0) - 1);
+    const newDaysInHospital = Math.max(0, (s.injury.daysInHospital ?? 0) - 1);
+    if (newDaysHealing <= 0 && newDaysInHospital <= 0) {
+      s = {
+        ...s,
+        injury: { ...s.injury, injured: false, severity: null, daysHealing: 0, daysInHospital: 0, description: '' },
+      };
+    } else {
+      s = {
+        ...s,
+        injury: { ...s.injury, daysHealing: newDaysHealing, daysInHospital: newDaysInHospital },
+      };
+    }
+  }
+
   // Consequences of low stats
   if (stats.hunger < 20) {
     stats.health = clamp(stats.health - 8);
@@ -1773,17 +1791,20 @@ export function harvestAllCrops(state: GameState): GameState {
 export function healAllLivestock(state: GameState, livestockType: string): GameState {
   const group = state.livestock.find(g => g.type === livestockType);
   if (!group) return state;
-  const sickCount = (group.sickCount ?? 0) + (group.injuredCount ?? 0);
-  if (sickCount === 0) return state;
+  const totalSick = (group.sickCount ?? 0) + (group.injuredCount ?? 0);
+  if (totalSick === 0) return state;
 
   // Chickens have no injury treatment — only sickness
   const isChicken = livestockType === 'Chicken';
-  const toTreat = isChicken ? (group.sickCount ?? 0) : sickCount;
-  if (toTreat === 0) return state;
+  const needed = isChicken ? (group.sickCount ?? 0) : totalSick;
+  if (needed === 0) return state;
 
   const kitId = `medkit_${livestockType.toLowerCase()}`;
   const kit = state.inventory.find(i => i.id === kitId);
-  if (!kit || kit.quantity < toTreat) return state;
+  if (!kit || kit.quantity <= 0) return state;
+
+  // Heal as many as the available kits allow — not all-or-nothing
+  const toTreat = Math.min(needed, kit.quantity);
 
   const newInventory = state.inventory
     .map(i => i.id === kitId ? { ...i, quantity: i.quantity - toTreat } : i)
@@ -1791,9 +1812,17 @@ export function healAllLivestock(state: GameState, livestockType: string): GameS
 
   const newLivestock = state.livestock.map(g => {
     if (g.type !== livestockType) return g;
-    return isChicken
-      ? { ...g, sickCount: 0 }
-      : { ...g, sickCount: 0, injuredCount: 0 };
+    if (isChicken) {
+      return { ...g, sickCount: Math.max(0, (g.sickCount ?? 0) - toTreat) };
+    }
+    // Split treatment across sick and injured proportionally, sick first
+    const healedSick = Math.min(toTreat, g.sickCount ?? 0);
+    const healedInjured = Math.min(toTreat - healedSick, g.injuredCount ?? 0);
+    return {
+      ...g,
+      sickCount: Math.max(0, (g.sickCount ?? 0) - healedSick),
+      injuredCount: Math.max(0, (g.injuredCount ?? 0) - healedInjured),
+    };
   });
 
   return { ...state, inventory: newInventory, livestock: newLivestock };
