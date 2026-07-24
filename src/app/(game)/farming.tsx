@@ -620,8 +620,18 @@ export default function Farming() {
                             {((group.sickCount ?? 0) > 0 || (group.type !== 'Chicken' && (group.injuredCount ?? 0) > 0)) && (
                               <Pressable
                                 onPress={() => {
+                                  const kitId = `medkit_${group.type.toLowerCase()}`;
+                                  const kit = inventory.find(i => i.id === kitId);
+                                  const needed = group.type === 'Chicken' ? (group.sickCount ?? 0) : (group.sickCount ?? 0) + (group.injuredCount ?? 0);
+                                  const available = kit?.quantity ?? 0;
                                   dispatch({ type: 'HEAL_ALL_LIVESTOCK', payload: group.type });
-                                  showFeedback(`✅ All sick/injured ${group.type} treated.`);
+                                  if (available <= 0) {
+                                    showFeedback(`⚠️ No ${group.type} medical kits in inventory — buy some from the shop first.`);
+                                  } else if (available < needed) {
+                                    showFeedback(`💉 Treated ${available}/${needed} — ${needed - available} still need kits.`);
+                                  } else {
+                                    showFeedback(`✅ All sick/injured ${group.type} treated.`);
+                                  }
                                 }}
                                 className="py-2 items-center"
                                 style={{ borderWidth: 1, borderColor: '#FF6B35', backgroundColor: '#2A0A00' }}
