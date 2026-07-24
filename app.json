@@ -26,15 +26,7 @@
       "expo-sqlite",
       "expo-font",
       "expo-system-ui",
-      "expo-file-system",
-      [
-        "expo-splash-screen",
-        {
-          "image": "./assets/splash.png",
-          "resizeMode": "cover",
-          "backgroundColor": "#0A0700"
-        }
-      ]
+      "expo-file-system"
     ],
     "router": {
       "root": "src"
