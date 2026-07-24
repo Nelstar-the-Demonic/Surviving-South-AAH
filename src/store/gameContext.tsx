@@ -841,12 +841,14 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         };
       }
       if (choice.effect.injured) {
+        const recoveryDays = 3 + Math.floor(Math.random() * 5);
         s = {
           ...s,
           injury: {
             ...s.injury,
             injured: true,
-            daysInHospital: 3 + Math.floor(Math.random() * 5),
+            daysInHospital: recoveryDays,
+            daysHealing: recoveryDays,
             severity: 'serious',
             description: `Injured during event: ${event.title}`,
           },
