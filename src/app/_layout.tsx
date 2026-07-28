@@ -4,7 +4,10 @@ import { PortalHost } from '@rn-primitives/portal';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { GameProvider } from '@/store/gameContext';
 import { DaySummaryModal } from '@/components/game/DaySummaryModal';
+import { initAds } from '@/lib/ads';
 import "../global.css";
+
+initAds();
 
 export default function RootLayout() {
   return (
