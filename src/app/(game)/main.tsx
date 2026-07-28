@@ -5,6 +5,7 @@ import { useGame } from '@/store/gameContext';
 import { DaySummaryModal } from '@/components/game/DaySummaryModal';
 import { formatMoney, getLocationIcon, getDayName } from '@/lib/game/gameEngine';
 import { AD_REWARD_DEFS, canClaimAdReward } from '@/lib/game/adRewards';
+import { showRewardedAd } from '@/lib/ads';
 import type { AdRewardType } from '@/types/game';
 import { StatusBar } from 'expo-status-bar';
 import { hapticLight, hapticMedium, hapticSuccess, hapticError } from '@/lib/haptics';
@@ -126,9 +127,18 @@ export default function MainGame() {
   const actionsLeft = Math.max(0, maxActionsPerDay - actionsUsedToday.length);
 
   function claimAdReward(type: AdRewardType) {
-    if (type === 'extra_action') dispatch({ type: 'GRANT_BONUS_ACTION' });
-    else dispatch({ type: 'CLAIM_AD_REWARD', payload: type });
-    hapticSuccess();
+    showRewardedAd(
+      () => {
+        // Ad watched to completion — grant the reward
+        if (type === 'extra_action') dispatch({ type: 'GRANT_BONUS_ACTION' });
+        else dispatch({ type: 'CLAIM_AD_REWARD', payload: type });
+        hapticSuccess();
+      },
+      () => {
+        // No ad available right now (still loading / offline)
+        hapticError();
+      }
+    );
   }
 
   function handleAdvanceDay() {

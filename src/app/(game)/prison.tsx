@@ -3,6 +3,7 @@ import { View, Text, ScrollView, Pressable, BackHandler } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useCallback } from 'react';
 import { useGame } from '@/store/gameContext';
+import { showRewardedAd } from '@/lib/ads';
 import { GameHeader } from '@/components/game/GameHeader';
 import { InfoCard } from '@/components/game/InfoCard';
 import { GameButton } from '@/components/game/GameButton';
@@ -382,7 +383,7 @@ export default function Prison() {
           <View className="mb-4 p-4" style={{ backgroundColor: '#0A0A0A', borderWidth: 1, borderColor: '#444' }}>
             <Text className="text-xs font-bold tracking-wider mb-2" style={{ color: '#B0B0B0' }}>⏩ SKIP AHEAD</Text>
             <Text className="text-muted-foreground text-xs mb-3">
-              Fast-forward through a stretch of your sentence at once. Stops early if something happens that needs your attention.
+              Fast-forward through a stretch of your sentence at once. Watch a short ad to unlock it. Stops early if something happens that needs your attention.
             </Text>
             <View className="flex-row gap-2">
               {[14, 21].map(days => (
@@ -392,14 +393,22 @@ export default function Prison() {
                   onPress={() => {
                     if (isProcessing) return;
                     setIsProcessing(true);
-                    dispatch({ type: 'PRISON_SKIP_DAYS', payload: days });
-                    showFeedback(`⏩ Skipped ahead ${days} days (or until something came up).`);
-                    setTimeout(() => setIsProcessing(false), 500);
+                    showRewardedAd(
+                      () => {
+                        dispatch({ type: 'PRISON_SKIP_DAYS', payload: days });
+                        showFeedback(`⏩ Skipped ahead ${days} days (or until something came up).`);
+                        setIsProcessing(false);
+                      },
+                      () => {
+                        showFeedback('⚠️ No ad available right now — try again in a moment.');
+                        setIsProcessing(false);
+                      }
+                    );
                   }}
                   className="flex-1 py-3 items-center"
                   style={{ borderWidth: 1, borderColor: '#64B5F6', backgroundColor: '#0A1420', opacity: isProcessing ? 0.5 : 1 }}
                 >
-                  <Text style={{ color: '#64B5F6' }} className="font-bold text-xs">⏩ Skip {days} Days</Text>
+                  <Text style={{ color: '#64B5F6' }} className="font-bold text-xs">📺 Watch Ad: Skip {days} Days</Text>
                 </Pressable>
               ))}
             </View>
