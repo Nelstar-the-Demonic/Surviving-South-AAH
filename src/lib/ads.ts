@@ -17,7 +17,14 @@ import mobileAds, {
   TestIds,
 } from 'react-native-google-mobile-ads';
 
-// Always TestIds for now — see note above.
+// Your real AdMob ad unit — ready to use once builds are stable and you're
+// ready to test carefully (avoid repeatedly triggering it yourself during
+// active development; that risks an invalid-traffic flag on the account).
+const REAL_REWARDED_AD_UNIT_ID = 'ca-app-pub-8730823359699825/5331730602';
+
+// Stays on Google's official TEST id for now, during the build-stabilizing
+// phase. Flip this one line to REAL_REWARDED_AD_UNIT_ID once builds are
+// reliable and you're ready to test with real (but not self-clicked) ads.
 const REWARDED_AD_UNIT_ID = TestIds.REWARDED;
 
 let rewardedAd: RewardedAd | null = null;
