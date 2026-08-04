@@ -1,14 +1,5 @@
 // ─── Ads (Google Mobile Ads / AdMob) ───────────────────────────────────────
-// Wraps react-native-google-mobile-ads for rewarded ads. Uses Google's
-// official TEST ad unit IDs everywhere for now — these always serve a real
-// (test) ad and are always safe to ship, but never earn revenue and never
-// risk an AdMob policy violation for using real IDs before the app has a
-// live store listing.
-//
-// TO GO LIVE LATER: once you have a real AdMob app + ad unit, replace
-// REWARDED_AD_UNIT_ID below with your real unit ID, and set the real
-// androidAppId in app.json's react-native-google-mobile-ads plugin config.
-// Nothing else about the calling code (main.tsx etc.) needs to change.
+// Wraps react-native-google-mobile-ads for rewarded ads.
 
 import mobileAds, {
   RewardedAd,
@@ -17,15 +8,12 @@ import mobileAds, {
   TestIds,
 } from 'react-native-google-mobile-ads';
 
-// Your real AdMob ad unit — ready to use once builds are stable and you're
-// ready to test carefully (avoid repeatedly triggering it yourself during
-// active development; that risks an invalid-traffic flag on the account).
+// Your real AdMob rewarded ad unit — ACTIVE. Real users watching this earns
+// real revenue. Do not repeatedly watch/click it yourself for testing — that
+// risks an invalid-traffic flag on the account. Genuine play is fine.
 const REAL_REWARDED_AD_UNIT_ID = 'ca-app-pub-8730823359699825/5331730602';
 
-// Stays on Google's official TEST id for now, during the build-stabilizing
-// phase. Flip this one line to REAL_REWARDED_AD_UNIT_ID once builds are
-// reliable and you're ready to test with real (but not self-clicked) ads.
-const REWARDED_AD_UNIT_ID = TestIds.REWARDED;
+const REWARDED_AD_UNIT_ID = REAL_REWARDED_AD_UNIT_ID;
 
 let rewardedAd: RewardedAd | null = null;
 let isLoaded = false;
@@ -55,8 +43,6 @@ export function initAds() {
       loadRewardedAd();
     })
     .catch(() => {
-      // Ads SDK failed to init (e.g. no network) — the app should keep
-      // working normally, just without ads available right now.
       isInitialized = false;
     });
 }
@@ -69,7 +55,7 @@ export function initAds() {
 export function showRewardedAd(onEarned: () => void, onUnavailable?: () => void) {
   if (!rewardedAd || !isLoaded) {
     onUnavailable?.();
-    loadRewardedAd(); // try to have one ready for next time
+    loadRewardedAd();
     return;
   }
 
@@ -82,7 +68,7 @@ export function showRewardedAd(onEarned: () => void, onUnavailable?: () => void)
   const unsubscribeClosed = rewardedAd.addAdEventListener(AdEventType.CLOSED, () => {
     unsubscribeEarned();
     unsubscribeClosed();
-    loadRewardedAd(); // preload the next one
+    loadRewardedAd();
   });
 
   rewardedAd.show();
