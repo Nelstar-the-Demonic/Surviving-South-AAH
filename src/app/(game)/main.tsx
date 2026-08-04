@@ -10,6 +10,7 @@ import type { AdRewardType } from '@/types/game';
 import { StatusBar } from 'expo-status-bar';
 import { hapticLight, hapticMedium, hapticSuccess, hapticError } from '@/lib/haptics';
 import { useLocationTheme } from '@/lib/locationTheme';
+import { GameBannerAd } from '@/components/game/GameBannerAd';
 
 // ── Design tokens ───────────────────────────────────────────────
 const C = {
@@ -149,10 +150,10 @@ export default function MainGame() {
   function handleMenuPress(route: string, id: number) {
     if (prison.imprisoned) {
       const allowed = ['/(game)/prison', '/(game)/save-game', '/(game)/settings'];
-      if (!allowed.includes(route)) { 
+      if (!allowed.includes(route)) {
         hapticError();
-        router.push('/(game)/prison'); 
-        return; 
+        router.push('/(game)/prison');
+        return;
       }
       hapticLight();
       router.push(route as any); return;
@@ -325,7 +326,7 @@ export default function MainGame() {
 
         {/* ── BONUS REWARDS (Collapsible) ── */}
         <View style={{ backgroundColor: locTheme.surface, borderWidth: 1, borderColor: '#2A2014', borderRadius: 10, marginBottom: 16, overflow: 'hidden' }}>
-          <Pressable 
+          <Pressable
             onPress={() => setShowBonusRewards(!showBonusRewards)}
             style={{ padding: 14, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
           >
@@ -336,7 +337,7 @@ export default function MainGame() {
               {showBonusRewards ? '−' : '+'}
             </Text>
           </Pressable>
-          
+
           {showBonusRewards && (
             <View style={{ gap: 8, paddingHorizontal: 14, paddingBottom: 14 }}>
               {AD_REWARD_DEFS.map(def => {
@@ -387,6 +388,7 @@ export default function MainGame() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+      <GameBannerAd />
     </View>
   );
 }
